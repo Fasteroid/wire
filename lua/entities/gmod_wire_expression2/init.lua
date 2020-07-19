@@ -34,7 +34,7 @@ do
 			e2_softquota = wire_expression2_quotasoft:GetInt()
 			e2_hardquota = wire_expression2_quotahard:GetInt()
 			e2_tickquota = wire_expression2_quotatick:GetInt()
-			e2_timequota = wire_expression2_quotatime:GetInt()*0.001
+			e2_timequota = wire_expression2_quotatime:GetInt()*0.001 // why?
 		end
 	end
 	cvars.AddChangeCallback("wire_expression2_unlimited", updateQuotas)
@@ -43,6 +43,11 @@ do
 	cvars.AddChangeCallback("wire_expression2_quotatick", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotatime", updateQuotas)
 	updateQuotas()
+	
+	// <fast>
+		util.AddNetworkString( "e2_opsreporting" )
+	// </fast>
+	
 end
 
 local function copytype(var)
@@ -114,6 +119,11 @@ function ENT:Initialize()
 
 	self:UpdateOverlay(true)
 	self:SetColor(Color(255, 0, 0, self:GetColor().a))
+	
+	// <fast>
+	self.nextOpsReport = CurTime()
+	// </fast>
+	
 end
 
 function ENT:OnRestore()
@@ -135,8 +145,28 @@ function ENT:Execute()
 	self.context:PushScope()
 
 	local bench = SysTime()
+	
+	--local ok, msg = pcall(self.script[1], self.context, self.script)
+	
+	
+	if coroutine.status(self.coroutine) == "dead" then
+	
+		self.coroutine = coroutine.create(self.script[1])
+	
+	end
+	
+	local didrun, ok, msg = pcall(function()
+	
+		return coroutine.resume(self.coroutine, self.context, self.script)
+	
+	end)
+	
+	
+	-- this shit might be breaking my e2 and I don't know if it is or not yet
+	-- PLEASE STOP RE ENABLING IT FOR ACTUAL HELL'S SAKE
 
-	local ok, msg = pcall(self.script[1], self.context, self.script)
+	-- Please verify this
+
 	if not ok then
 		if msg == "exit" then
 		elseif msg == "perf" then
@@ -145,7 +175,7 @@ function ENT:Execute()
 			self:Error("Expression 2 (" .. self.name .. "): " .. msg, "script error")
 		end
 	end
-
+	
 	self.context.time = self.context.time + (SysTime() - bench)
 
 	self.context:PopScope()
@@ -183,6 +213,17 @@ end
 function ENT:Think()
 	BaseClass.Think(self)
 	self:NextThink(CurTime()+0.030303)
+	
+	// <fast>
+	if( not net.BytesWritten() and self.nextOpsReport <= CurTime() and not self.error and self.context) then
+		self.nextOpsReport = CurTime() + 0.125
+		net.Start( "e2_opsreporting", true )
+			net.WriteFloat( self.context.timebench*10000 )
+			net.WriteInt( math.Round(self.context.prf), 24 )
+		net.Send(self.player)
+	end
+	// </fast>
+	
 
 	if self.context and not self.error then
 		self.context.prfbench = self.context.prfbench * 0.95 + self.context.prf * 0.05
@@ -282,7 +323,9 @@ function ENT:CompileCode(buffer, files, filepath)
 	self.funcs = inst.funcs
 	self.funcs_ret = inst.funcs_ret
 	self.globvars = inst.GlobalScope
-
+	
+	self.coroutine = coroutine.create(self.script[1])
+	
 	self:ResetContext()
 end
 
@@ -429,7 +472,7 @@ function ENT:Setup(buffer, includes, restore, forcecompile, filepath)
 	if self.script then
 		self:PCallHook('destruct')
 	end
-
+	
 	self.uid = IsValid(self.player) and self.player:UniqueID() or "World"
 	self:SetColor(Color(255, 255, 255, self:GetColor().a))
 
