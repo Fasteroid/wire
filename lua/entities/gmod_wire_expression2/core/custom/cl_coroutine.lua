@@ -1,0 +1,1 @@
+E2Helper.Descriptions["yield()"] = "Continues execution from here at the next game tick."
