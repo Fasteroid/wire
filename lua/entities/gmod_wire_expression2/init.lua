@@ -161,12 +161,6 @@ function ENT:Execute()
 	
 	end)
 	
-	
-	-- this shit might be breaking my e2 and I don't know if it is or not yet
-	-- PLEASE STOP RE ENABLING IT FOR ACTUAL HELL'S SAKE
-
-	-- Please verify this
-
 	if not ok then
 		if msg == "exit" then
 		elseif msg == "perf" then
@@ -180,31 +174,34 @@ function ENT:Execute()
 
 	self.context:PopScope()
 
-	self.first = false -- if hooks call execute
-	self.duped = false -- if hooks call execute
-	self.context.triggerinput = nil -- if hooks call execute
+	if coroutine.status(self.coroutine) ~= "suspended" then // fix if first bug
+		self.first = false -- if hooks call execute
+		self.duped = false -- if hooks call execute
+		self.context.triggerinput = nil -- if hooks call execute
+	
+		self:PCallHook('postexecute')
 
-	self:PCallHook('postexecute')
+		self:TriggerOutputs()
 
-	self:TriggerOutputs()
-
-	for k, v in pairs(self.inports[3]) do
-		if self.GlobalScope[k] then
-			if wire_expression_types[self.Inputs[k].Type][3] then
-				self.GlobalScope[k] = wire_expression_types[self.Inputs[k].Type][3](self.context, self.Inputs[k].Value)
-			else
-				self.GlobalScope[k] = self.Inputs[k].Value
+		for k, v in pairs(self.inports[3]) do
+			if self.GlobalScope[k] then
+				if wire_expression_types[self.Inputs[k].Type][3] then
+					self.GlobalScope[k] = wire_expression_types[self.Inputs[k].Type][3](self.context, self.Inputs[k].Value)
+				else
+					self.GlobalScope[k] = self.Inputs[k].Value
+				end
 			end
 		end
-	end
 
-	self.GlobalScope.vclk = {}
-	for k, v in pairs(self.globvars) do
-		self.GlobalScope[k] = copytype(wire_expression_types2[v][2])
-	end
+		self.GlobalScope.vclk = {}
+		for k, v in pairs(self.globvars) do
+			self.GlobalScope[k] = copytype(wire_expression_types2[v][2])
+		end
 
-	if self.context.prfcount + self.context.prf - e2_softquota > e2_hardquota then
-		self:Error("Expression 2 (" .. self.name .. "): tick quota exceeded", "hard quota exceeded")
+		if self.context.prfcount + self.context.prf - e2_softquota > e2_hardquota then
+			self:Error("Expression 2 (" .. self.name .. "): tick quota exceeded", "hard quota exceeded")
+		end
+
 	end
 
 	if self.error then self:PCallHook('destruct') end

@@ -19,7 +19,7 @@ local concat = table.concat
 local function findFunc( self, funcname, typeids, typeids_str )
 	local func, func_return_type, vararg
 
-	self.prf = self.prf + 40
+	self.prf = self.prf + 10 // who the fuck made this so expensive?  It's not THAT expensive!
 
 	local str = funcname .. "(" .. typeids_str .. ")"
 	for i=1,#self.strfunc_cache do
@@ -29,7 +29,7 @@ local function findFunc( self, funcname, typeids, typeids_str )
 		end
 	end
 
-	self.prf = self.prf + 40
+	self.prf = self.prf + 10
 
 	if #typeids > 0 then
 		if not func then
@@ -76,7 +76,7 @@ local function findFunc( self, funcname, typeids, typeids_str )
 	return func, func_return_type
 end
 
-__e2setcost(20)
+__e2setcost(2)
 
 registerOperator( "stringcall", "", "", function(self, args)
 	local op1, funcargs, typeids, typeids_str, returntype = args[2], args[3], args[4], args[5], args[6]
@@ -90,7 +90,7 @@ registerOperator( "stringcall", "", "", function(self, args)
 		error( "Mismatching return types. Got " .. nicename(wire_expression_types2[returntype][1]) .. ", expected " .. nicename(wire_expression_types2[func_return_type][1] ), 0 )
 	end
 
-	self.prf = self.prf + 40
+	self.prf = self.prf + 10
 
 	if returntype ~= "" then
 		local ret = func( self, funcargs )

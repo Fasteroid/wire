@@ -942,8 +942,7 @@ if( first() ){
 local code2 = [[
     #[
         Welcome to E2 Beyond Infinity!
-        You have 100000 OPS AND coroutine technology at your disposal here. (Thanks Speedeo!)
-        To pause your code till next game tick, use entity():yield()
+        Max OPS here is 100,000.  CPU is a better measure of E2 perf impact.
 	
         Documentation and examples are available at:
         https://github.com/wiremod/wire/wiki/Expression-2
@@ -966,10 +965,15 @@ function Editor:AutoSave()
 	if( not file.Exists("expression2/autosave", "DATA") ) then
 		file.CreateDir("expression2/autosave")
 	end
-
-	self.autosaveLocation = self:GetChosenFile()
-	self.autosaveLocation = string.SetChar(self.autosaveLocation, 12, "/autosave/")
-	self.autosaveLocation = string.SetChar(self.autosaveLocation, #self.autosaveLocation - 3, "_autosave.")
+	local autosave = self:GetChosenFile() 
+	if( autosave ) then
+		self.autosaveLocation = autosave
+		self.autosaveLocation = string.SetChar(self.autosaveLocation, 12, "/autosave/")
+		self.autosaveLocation = string.SetChar(self.autosaveLocation, #self.autosaveLocation - 3, "_autosave.")
+	else
+		self.autosaveLocation = extractNameFromCode(buffer) or "generic"
+		self.autosaveLocation = "expression2/autosave/" .. string.Replace( self.autosaveLocation, " ", "_") .. "_autosave.txt"
+	end
 
 	file.Write( self.autosaveLocation, buffer )
 end
