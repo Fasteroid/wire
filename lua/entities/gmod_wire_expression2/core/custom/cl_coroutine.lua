@@ -1,0 +1,1 @@
+E2Helper.Descriptions["yield()"] = "Resumes the E2 from here in the code next time it executes."

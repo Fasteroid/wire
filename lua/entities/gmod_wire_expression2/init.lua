@@ -34,7 +34,7 @@ do
 			e2_softquota = wire_expression2_quotasoft:GetInt()
 			e2_hardquota = wire_expression2_quotahard:GetInt()
 			e2_tickquota = wire_expression2_quotatick:GetInt()
-			e2_timequota = wire_expression2_quotatime:GetInt()*0.001
+			e2_timequota = wire_expression2_quotatime:GetInt()*0.001 // why?
 		end
 	end
 	cvars.AddChangeCallback("wire_expression2_unlimited", updateQuotas)
@@ -43,6 +43,11 @@ do
 	cvars.AddChangeCallback("wire_expression2_quotatick", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotatime", updateQuotas)
 	updateQuotas()
+	
+	// <fast>
+		util.AddNetworkString( "e2_opsreporting" )
+	// </fast>
+	
 end
 
 local function copytype(var)
@@ -114,6 +119,11 @@ function ENT:Initialize()
 
 	self:UpdateOverlay(true)
 	self:SetColor(Color(255, 0, 0, self:GetColor().a))
+	
+	// <fast>
+	self.nextOpsReport = CurTime()
+	// </fast>
+	
 end
 
 function ENT:OnRestore()
@@ -135,8 +145,22 @@ function ENT:Execute()
 	self.context:PushScope()
 
 	local bench = SysTime()
-
-	local ok, msg = pcall(self.script[1], self.context, self.script)
+	
+	--local ok, msg = pcall(self.script[1], self.context, self.script)
+	
+	
+	if coroutine.status(self.coroutine) == "dead" then
+	
+		self.coroutine = coroutine.create(self.script[1])
+	
+	end
+	
+	local didrun, ok, msg = pcall(function()
+	
+		return coroutine.resume(self.coroutine, self.context, self.script)
+	
+	end)
+	
 	if not ok then
 		if msg == "exit" then
 		elseif msg == "perf" then
@@ -145,36 +169,39 @@ function ENT:Execute()
 			self:Error("Expression 2 (" .. self.name .. "): " .. msg, "script error")
 		end
 	end
-
+	
 	self.context.time = self.context.time + (SysTime() - bench)
 
 	self.context:PopScope()
 
-	self.first = false -- if hooks call execute
-	self.duped = false -- if hooks call execute
-	self.context.triggerinput = nil -- if hooks call execute
+	if coroutine.status(self.coroutine) ~= "suspended" then // fix if first bug
+		self.first = false -- if hooks call execute
+		self.duped = false -- if hooks call execute
+		self.context.triggerinput = nil -- if hooks call execute
+	
+		self:PCallHook('postexecute')
 
-	self:PCallHook('postexecute')
+		self:TriggerOutputs()
 
-	self:TriggerOutputs()
-
-	for k, v in pairs(self.inports[3]) do
-		if self.GlobalScope[k] then
-			if wire_expression_types[self.Inputs[k].Type][3] then
-				self.GlobalScope[k] = wire_expression_types[self.Inputs[k].Type][3](self.context, self.Inputs[k].Value)
-			else
-				self.GlobalScope[k] = self.Inputs[k].Value
+		for k, v in pairs(self.inports[3]) do
+			if self.GlobalScope[k] then
+				if wire_expression_types[self.Inputs[k].Type][3] then
+					self.GlobalScope[k] = wire_expression_types[self.Inputs[k].Type][3](self.context, self.Inputs[k].Value)
+				else
+					self.GlobalScope[k] = self.Inputs[k].Value
+				end
 			end
 		end
-	end
 
-	self.GlobalScope.vclk = {}
-	for k, v in pairs(self.globvars) do
-		self.GlobalScope[k] = copytype(wire_expression_types2[v][2])
-	end
+		self.GlobalScope.vclk = {}
+		for k, v in pairs(self.globvars) do
+			self.GlobalScope[k] = copytype(wire_expression_types2[v][2])
+		end
 
-	if self.context.prfcount + self.context.prf - e2_softquota > e2_hardquota then
-		self:Error("Expression 2 (" .. self.name .. "): tick quota exceeded", "hard quota exceeded")
+		if self.context.prfcount + self.context.prf - e2_softquota > e2_hardquota then
+			self:Error("Expression 2 (" .. self.name .. "): tick quota exceeded", "hard quota exceeded")
+		end
+
 	end
 
 	if self.error then self:PCallHook('destruct') end
@@ -183,6 +210,17 @@ end
 function ENT:Think()
 	BaseClass.Think(self)
 	self:NextThink(CurTime()+0.030303)
+	
+	// <fast>
+	if( not net.BytesWritten() and self.nextOpsReport <= CurTime() and not self.error and self.context) then
+		self.nextOpsReport = CurTime() + 0.125
+		net.Start( "e2_opsreporting", true )
+			net.WriteFloat( self.context.timebench*10000 )
+			net.WriteInt( math.Round(self.context.prf), 24 )
+		net.Send(self.player)
+	end
+	// </fast>
+	
 
 	if self.context and not self.error then
 		self.context.prfbench = self.context.prfbench * 0.95 + self.context.prf * 0.05
@@ -282,7 +320,9 @@ function ENT:CompileCode(buffer, files, filepath)
 	self.funcs = inst.funcs
 	self.funcs_ret = inst.funcs_ret
 	self.globvars = inst.GlobalScope
-
+	
+	self.coroutine = coroutine.create(self.script[1])
+	
 	self:ResetContext()
 end
 
@@ -429,7 +469,7 @@ function ENT:Setup(buffer, includes, restore, forcecompile, filepath)
 	if self.script then
 		self:PCallHook('destruct')
 	end
-
+	
 	self.uid = IsValid(self.player) and self.player:UniqueID() or "World"
 	self:SetColor(Color(255, 255, 255, self:GetColor().a))
 

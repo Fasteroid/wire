@@ -787,8 +787,7 @@ function Editor:InitComponents()
 
 	self.C.Control = self:addComponent(vgui.Create("Panel", self), -350, 52, 342, -32) -- Control Panel
 	self.C.Credit = self:addComponent(vgui.Create("DTextEntry", self), -160, 52, 150, 150) -- Credit box
-	self.C.Credit:SetEditable(false)
-	
+
 	self:CreateTab("generic")
 
 	-- extra component options
@@ -931,23 +930,52 @@ function Editor:InitComponents()
 end
 
 -- code1 contains the code that is not to be marked
-local code1 = "@name \n@inputs \n@outputs \n@persist \n@trigger \n\n"
--- code2 contains the code that is to be marked, so it can simply be overwritten or deleted.
-local code2 = [[#[
-    Documentation and examples are available at:
-    https://github.com/wiremod/wire/wiki/Expression-2
+local code1 = [[@name 
+@inputs 
+@outputs 
+@persist 
+@trigger
 
-    Discord is available at https://discord.gg/H8UKY3Y
-    Reddit is available at https://www.reddit.com/r/wiremod
-    Report any bugs you find here https://github.com/wiremod/wire/issues
-]#]]
-local defaultcode = code1 .. code2 .. "\n"
+if( first() ){
+]]
+-- code2 contains the code that is to be marked, so it can simply be overwritten or deleted.
+local code2 = [[
+    #[
+        Welcome to E2 Beyond Infinity!
+        Max OPS here is 100,000.  CPU is a better measure of E2 perf impact.
+	
+        Documentation and examples are available at:
+        https://github.com/wiremod/wire/wiki/Expression-2
+        
+        This message will self destruct on key press.
+    ]#
+]]
+
+-- code3 closes the curly boi from 1
+local code3 = [[
+}]]
+
+local defaultcode = code1 .. code2 .. code3 .. "\n" 
 
 function Editor:AutoSave()
 	local buffer = self:GetCode()
 	if self.savebuffer == buffer or buffer == defaultcode or buffer == "" then return end
 	self.savebuffer = buffer
-	file.Write(self.Location .. "/_autosave_.txt", buffer)
+
+	if( not file.Exists("expression2/autosave", "DATA") ) then
+		file.CreateDir("expression2/autosave")
+	end
+	local autosave = self:GetChosenFile() 
+	if( autosave ) then
+		self.autosaveLocation = autosave
+		self.autosaveLocation = string.SetChar(self.autosaveLocation, 12, "/autosave/")
+		self.autosaveLocation = string.SetChar(self.autosaveLocation, #self.autosaveLocation - 3, "_autosave.")
+	else
+		self.autosaveLocation = extractNameFromCode(buffer) or "generic"
+		self.autosaveLocation = "expression2/autosave/" .. string.Replace( self.autosaveLocation, " ", "_") .. "_autosave.txt"
+	end
+
+	file.Write( self.autosaveLocation, buffer )
 end
 
 function Editor:AddControlPanelTab(label, icon, tooltip)
@@ -1513,8 +1541,8 @@ function Editor:NewScript(incurrent)
 			self:SetCode(defaultcode)
 			local ed = self:GetCurrentEditor()
 			-- mark only code2
-			ed.Start = ed:MovePosition({ 1, 1 }, code1:len())
-			ed.Caret = ed:MovePosition({ 1, 1 }, defaultcode:len())
+			ed.Start = ed:MovePosition({ 1, 1 }, code1:len() + 4)
+			ed.Caret = ed:MovePosition({ 1, 1 }, code1:len() + code2:len() - 1 )
 		else
 			self:SetCode("")
 		end
@@ -1949,9 +1977,8 @@ function Editor:Setup(nTitle, nLocation, nEditorType)
 
 	if nEditorType == "E2" then
 		self.E2 = true
+		self:NewScript(true) -- insert default code
 	end
-
-	self:NewScript(true) -- Opens initial tab, in case OpenOldTabs is disabled or fails.
 
 	if wire_expression2_editor_openoldtabs:GetBool() then
 		self:OpenOldTabs()

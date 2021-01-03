@@ -38,6 +38,7 @@ end
 
 function PreProcessor:HandlePPCommand(comment)
 	local command, args = comment:match("^([^ ]*) ?(.*)$")
+
 	local handler = self["PP_" .. command]
 	if handler then return handler(self, args) end
 end
@@ -251,6 +252,7 @@ function PreProcessor:Process(buffer, directives, ent)
 	-- entity is needed for autoupdate
 	self.ent = ent
 	self.ifdefStack = {}
+	self.Macros = {}
 
 	local lines = string.Explode("\n", buffer)
 
@@ -272,6 +274,18 @@ function PreProcessor:Process(buffer, directives, ent)
 	for i, line in ipairs(lines) do
 		self.readline = i
 		line = string.TrimRight(line)
+
+		for i, Macro in pairs(self.Macros) do
+
+			if not Macro[2] then
+
+				line = string.Replace(line, Macro[1], Macro[3])
+
+			else
+
+			end
+
+		end
 
 		line = self:RemoveComments(line)
 		line = self:ParseDirectives(line)
@@ -421,4 +435,25 @@ function PreProcessor:PP_endif(args)
 	if state == nil then self:Error("Found #endif outside #ifdef/#ifndef block") end
 
 	if args:Trim() ~= "" then self:Error("Must not pass an argument to #endif") end
+end
+
+function PreProcessor:PP_define(Arguments)
+
+	local MacroName, MacroArguments, Macro = Arguments:match("([^%(]*)(.*)")
+	MacroArguments, Macro = (MacroArguments):match("%(([^)]*)%) %((.*)%)")
+
+	if not MacroArguments then
+
+		MacroName, Macro = Arguments:match("([^ ]*) %((.*)%)")
+
+		if not Macro then self:Error("Macro definition is missing parenthesis") end
+
+	else
+
+		MacroArguments = string.Explode(",( ?)", MacroArguments)
+
+	end
+
+	self.Macros[MacroName] = {MacroName, MacroArguments, Macro}
+
 end
