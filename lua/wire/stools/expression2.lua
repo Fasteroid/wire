@@ -78,7 +78,9 @@ if SERVER then
 		if not IsValid( target ) then error( "Invalid entity specified" ) end
 		net.Start("wire_expression2_tool_upload")
 			net.WriteUInt(target:EntIndex(), 16)
-			net.WriteString( filepath or "" )
+			filepath = filepath or ""
+			net.WriteUInt(#filepath, 32)
+			if #filepath>0 then net.WriteData(filepath, #filepath) end
 			net.WriteInt( target.buffer and tonumber(util.CRC( target.buffer )) or -1, 32 ) -- send the hash so we know if there's any difference
 		net.Send(ply)
 	end
@@ -133,7 +135,9 @@ if SERVER then
 						net.WriteEntity(targetEnt)
 						net.WriteBit(uploadandexit or false)
 						net.WriteUInt(numpackets, 16)
-						net.WriteString(datastr:sub(i, i + 63999))
+						local data = datastr:sub(i, i + 63999)
+						net.WriteUInt(#data, 32)
+						net.WriteData(data, #data)
 					net.Send(ply)
 				end)
 				n = n + 1
@@ -148,7 +152,8 @@ if SERVER then
 			net.Start("wire_expression2_download_wantedfiles_list")
 			net.WriteEntity(targetEnt)
 			net.WriteBit(uploadandexit or false)
-			net.WriteString(datastr)
+			net.WriteUInt(#datastr, 32)
+			net.WriteData(datastr, #datastr)
 			net.Send(ply)
 		else
 			local data = { {}, {} }
@@ -176,7 +181,9 @@ if SERVER then
 						net.WriteEntity(targetEnt)
 						net.WriteBit(uploadandexit or false)
 						net.WriteUInt(numpackets, 16)
-						net.WriteString(datastr:sub(i, i + 63999))
+						local data = datastr:sub(i, i + 63999)
+						net.WriteUInt(#data, 32)
+						net.WriteData(data, #data)
 					net.Send(ply)
 				end)
 				n = n + 1
@@ -184,7 +191,7 @@ if SERVER then
 		end
 	end
 
-	local wantedfiles = {}
+	local wantedfiles = WireLib.RegisterPlayerTable()
 	net.Receive("wire_expression2_download_wantedfiles", function(len, ply)
 		local toent = net.ReadEntity()
 		local uploadandexit = net.ReadBit() ~= 0
@@ -196,7 +203,7 @@ if SERVER then
 		end
 
 		if not wantedfiles[ply] then wantedfiles[ply] = {} end
-		table.insert(wantedfiles[ply], net.ReadString())
+		table.insert(wantedfiles[ply], net.ReadData(net.ReadUInt(32)))
 		if numpackets <= #wantedfiles[ply] then
 			local ok, ret = pcall(WireLib.von.deserialize, E2Lib.decode(table.concat(wantedfiles[ply])))
 			wantedfiles[ply] = nil
@@ -213,8 +220,8 @@ if SERVER then
 	-- ------------------------------------------------------------
 	-- Serverside Receive
 	-- ------------------------------------------------------------
-	local uploads = {}
-	local upload_ents = {}
+	local uploads = WireLib.RegisterPlayerTable()
+	local upload_ents = WireLib.RegisterPlayerTable()
 	net.Receive("wire_expression2_upload", function(len, ply)
 		local toent = Entity(net.ReadUInt(16))
 		local numpackets = net.ReadUInt(16)
@@ -240,7 +247,7 @@ if SERVER then
 		upload_ents[ply] = toent
 
 		if not uploads[ply] then uploads[ply] = {} end
-		uploads[ply][#uploads[ply]+1] = net.ReadString()
+		uploads[ply][#uploads[ply]+1] = net.ReadData(net.ReadUInt(32))
 		if numpackets <= #uploads[ply] then
 			local datastr = E2Lib.decode(table.concat(uploads[ply]))
 			uploads[ply] = nil
@@ -269,7 +276,7 @@ if SERVER then
 	-- Stuff for the remote updater
 	-- ------------------------------------------------------------
 
-	local antispam = {}
+	local antispam = WireLib.RegisterPlayerTable()
 	-- Returns true if they are spamming, false if they can go ahead and use it
 	local function canhas(ply)
 		if not antispam[ply] then antispam[ply] = 0 end
@@ -347,7 +354,7 @@ if SERVER then
 	-- Server part
 	------------------------------------------------------
 
-	local players_synced = {}
+	local players_synced = WireLib.RegisterPlayerTable()
 	util.AddNetworkString( "wire_expression_sync_ops" )
 	concommand.Add("wire_expression_ops_sync", function(player,command,args)
 		if not player:IsAdmin() then return end
@@ -496,7 +503,9 @@ elseif CLIENT then
 				net.Start("wire_expression2_upload")
 					net.WriteUInt(targetEnt, 16)
 					net.WriteUInt(numpackets, 16)
-					net.WriteString(datastr:sub(i, i + 63999))
+					local data = datastr:sub(i, i + 63999)
+					net.WriteUInt(#data, 32)
+					net.WriteData(data, #data)
 				net.SendToServer()
 			end)
 			delay = delay + 1
@@ -557,12 +566,13 @@ elseif CLIENT then
 
 		if sending then return end
 		sending = true
-		upload_queue(true) // true means its the first packet, suppressing the delay
+		upload_queue(true) -- true means its the first packet, suppressing the delay
 	end
 
 	net.Receive("wire_expression2_tool_upload", function(len, ply)
 		local ent = net.ReadUInt(16)
-		local filepath = net.ReadString()
+		local filepathlen = net.ReadUInt(32)
+		local filepath = filepathlen>0 and net.ReadData(filepathlen) or ""
 		local hash = net.ReadInt(32)
 		if filepath ~= "" then
 			if filepath and file.Exists(filepath, "DATA") then
@@ -594,7 +604,7 @@ elseif CLIENT then
 		local uploadandexit = net.ReadBit() ~= 0
 		local numpackets = net.ReadUInt(16)
 
-		buffer = buffer .. net.ReadString()
+		buffer = buffer .. net.ReadData(net.ReadUInt(32))
 		count = count + 1
 
 		Expression2SetProgress(count / numpackets * 100, nil, "Downloading")
@@ -602,7 +612,7 @@ elseif CLIENT then
 			local ok, ret = pcall(WireLib.von.deserialize, buffer)
 			buffer, count = "", 0
 			if not ok then
-				WireLib.AddNotify(ply, "Expression 2 download failed! Error message:\n" .. ret, NOTIFY_ERROR, 7, NOTIFYSOUND_DRIP3)
+				WireLib.AddNotify("Expression 2 download failed! Error message:\n" .. ret, NOTIFY_ERROR, 7, NOTIFYSOUND_DRIP3)
 				return
 			end
 			local files = ret
@@ -633,11 +643,11 @@ elseif CLIENT then
 	net.Receive("wire_expression2_download_wantedfiles_list", function(len)
 		local ent = net.ReadEntity()
 		local uploadandexit = net.ReadBit() ~= 0
-		local buffer = net.ReadString()
+		local buffer = net.ReadData(net.ReadUInt(32))
 
 		local ok, ret = pcall(WireLib.von.deserialize, buffer)
 		if not ok then
-			WireLib.AddNotify(ply, "Expression 2 file list download failed! Error message:\n" .. ret, NOTIFY_ERROR, 7, NOTIFYSOUND_DRIP3)
+			WireLib.AddNotify("Expression 2 file list download failed! Error message:\n" .. ret, NOTIFY_ERROR, 7, NOTIFYSOUND_DRIP3)
 			print("Expression 2 file list download failed! Error message:\n" .. ret)
 			return
 		end
@@ -736,7 +746,9 @@ elseif CLIENT then
 				net.WriteEntity(ent)
 				net.WriteBit(uploadandexit)
 				net.WriteUInt(numpackets, 16)
-				net.WriteString(datastr:sub(i, i + 63999))
+				local data = datastr:sub(i, i + 63999)
+				net.WriteUInt(#data, 32)
+				net.WriteData(data, #data)
 				net.SendToServer()
 			end
 
@@ -971,7 +983,7 @@ if SERVER then
 
 elseif CLIENT then
 
-	local busy_players = {}
+	local busy_players = WireLib.RegisterPlayerTable()
 	hook.Add("EntityRemoved", "wire_expression2_busy_animation", function(ply)
 		busy_players[ply] = nil
 	end)
