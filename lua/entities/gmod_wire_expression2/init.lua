@@ -1,3 +1,4 @@
+
 AddCSLuaFile('cl_init.lua')
 AddCSLuaFile('shared.lua')
 include('shared.lua')
@@ -43,6 +44,11 @@ do
 	cvars.AddChangeCallback("wire_expression2_quotatick", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotatime", updateQuotas)
 	updateQuotas()
+	
+	// <fast>
+		util.AddNetworkString( "e2_opsreporting" )
+	// </fast>
+	
 end
 
 local function copytype(var)
@@ -114,6 +120,11 @@ function ENT:Initialize()
 
 	self:UpdateOverlay(true)
 	self:SetColor(Color(255, 0, 0, self:GetColor().a))
+	
+	// <fast>
+	self.nextOpsReport = CurTime()
+	// </fast>
+	
 end
 
 function ENT:OnRestore()
