@@ -3,38 +3,6 @@ DEFINE_BASECLASS( "base_wire_entity" )
 ENT.PrintName       = "Wire Camera Controller"
 ENT.WireDebugName	= "Camera Controller"
 
--- Helper function, code for both client and serverside camera rotation adjustments
-local function doRotate(curpos,curang,ply,parent,AutoMove,LocalMove,distance)
-	if AutoMove then
-		-- TODO: remove this check at some point in the future when LocalEyeAngles is available in the stable version of gmod
-		if ply.LocalEyeAngles then
-			curang =  ply:LocalEyeAngles()
-		else 
-			curang = ply:EyeAngles()
-			local veh = ply:GetVehicle()
-			if SERVER and IsValid( veh ) then curang = veh:WorldToLocalAngles( curang ) end
-		end
-
-		if IsValid( parent ) then
-			if LocalMove then
-				curpos = parent:LocalToWorld( curpos - curang:Forward() * distance )
-				curang = parent:LocalToWorldAngles( curang )
-			else
-				curpos = parent:LocalToWorld( curpos ) - curang:Forward() * distance
-			end
-		else
-			curpos = curpos - curang:Forward() * distance
-		end
-	else
-		if IsValid( parent ) then
-			curpos = parent:LocalToWorld( curpos - curang:Forward() * distance )
-			curang = parent:LocalToWorldAngles( curang )
-		end
-	end
-
-	return curpos, curang
-end
-
 if CLIENT then
 
 	--------------------------------------------------
@@ -88,6 +56,36 @@ if CLIENT then
 	local Parent
 	local function GetParent()
 		return Parent, IsValid( Parent )
+	end
+
+	local function DoAutoMove( curpos, curang, curdistance, parent, HasParent )
+		local pos_speed = pos_speed_convar:GetFloat()
+		local ang_speed = pos_speed - 2
+
+		curang = LocalPlayer():EyeAngles()
+
+		if AllowZoom then
+			if zoombind ~= 0 then
+				zoomdistance = math.Clamp(zoomdistance + zoombind * FrameTime() * 100 * max((abs(curdistance) + abs(zoomdistance))/10,10),0,16000-curdistance)
+				zoombind = 0
+			end
+			curdistance = curdistance + zoomdistance
+		end
+
+		smoothdistance = Lerp( FrameTime() * pos_speed, smoothdistance, curdistance )
+
+		if HasParent then
+			if LocalMove then
+				curpos = parent:LocalToWorld( curpos - curang:Forward() * smoothdistance )
+				curang = parent:LocalToWorldAngles( curang )
+			else
+				curpos = parent:LocalToWorld( curpos ) - curang:Forward() * smoothdistance
+			end
+		else
+			curpos = curpos - curang:Forward() * smoothdistance
+		end
+
+		return curpos, curang
 	end
 
 	local function DoAutoUnclip( curpos, parent, HasParent )
@@ -146,22 +144,10 @@ if CLIENT then
 
 		-- AutoMove
 		if AutoMove then
-			-- smooth the position
+			-- only smooth the position, and do it before the automove
 			smoothpos = LerpVector( FrameTime() * pos_speed, smoothpos, curpos )
 
-			local pos_speed = pos_speed_convar:GetFloat()
-			local ang_speed = pos_speed - 2
-
-			if AllowZoom then
-				if zoombind ~= 0 then
-					zoomdistance = math.Clamp(zoomdistance + zoombind * FrameTime() * 100 * max((abs(curdistance) + abs(zoomdistance))/10,10),0,16000-curdistance)
-					zoombind = 0
-				end
-				curdistance = curdistance + zoomdistance
-			end
-
-			smoothdistance = Lerp( FrameTime() * pos_speed, smoothdistance, curdistance )
-			curpos, curang = doRotate(curpos,curang,LocalPlayer(),parent,AutoMove,LocalMove,smoothdistance)
+			curpos, curang = DoAutoMove( smoothpos, curang, curdistance, parent, HasParent )
 
 			if AutoUnclip then
 				curpos = DoAutoUnclip( curpos, parent, HasParent )
@@ -175,7 +161,9 @@ if CLIENT then
 			smoothpos = LerpVector( FrameTime() * pos_speed, smoothpos, curpos )
 			smoothang = LerpAngle( FrameTime() * ang_speed, smoothang, curang )
 
-			curpos, curang = doRotate(smoothpos,smoothang,LocalPlayer(),parent,AutoMove,LocalMove,curdistance)
+			-- now toworld it
+			curpos = parent:LocalToWorld( smoothpos )
+			curang = parent:LocalToWorldAngles( smoothang )
 
 			-- now check for auto unclip
 			if AutoUnclip then
@@ -526,7 +514,30 @@ function ENT:UpdateOutputs()
 
 		local curpos = pos
 		local curang = ang
-		curpos, curang = doRotate(curpos,curang,ply,parent,self.AutoMove,self.LocalMove,self.Distance)
+
+		if self.AutoMove then
+			curang = ply:EyeAngles()
+			local veh = ply:GetVehicle()
+			if IsValid( veh ) then curang = veh:WorldToLocalAngles( curang ) end
+
+			local dist = self.Distance
+
+			if HasParent and IsValid( parent ) then
+				if self.LocalMove then
+					curpos = parent:LocalToWorld( curpos - curang:Forward() * dist )
+					curang = parent:LocalToWorldAngles( curang )
+				else
+					curpos = parent:LocalToWorld( curpos ) - curang:Forward() * dist
+				end
+			else
+				curpos = curpos - curang:Forward() * dist
+			end
+		else
+			if HasParent then
+				curpos = parent:LocalToWorld( curpos )
+				curang = parent:LocalToWorldAngles( curang )
+			end
+		end
 
 		-- AutoUnclip
 		if self.AutoUnclip then

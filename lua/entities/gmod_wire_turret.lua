@@ -23,7 +23,6 @@ function ENT:Initialize()
 	self.Firing       = false
 	self.spreadvector = Vector()
 	self.effectdata   = EffectData()
-	self.attachmentPos = phys:WorldToLocal(self:GetAttachment(1).Pos)
 
 	self.Inputs = WireLib.CreateSpecialInputs(self,
 		{ "Fire", "Force", "Damage", "NumBullets", "Spread", "Delay", "Sound", "Tracer" },
@@ -43,9 +42,12 @@ function ENT:FireShot()
 		self:EmitSound( self.sound )
 	end
 
-	local phys = self:GetPhysicsObject()
-	local shootOrigin = phys:LocalToWorld(self.attachmentPos)
-	local shootAngles = phys:GetAngles()
+	-- Get the muzzle attachment (this is pretty much always 1)
+	local Attachment = self:GetAttachment( 1 )
+
+	-- Get the shot angles and stuff.
+	local shootOrigin = Attachment.Pos + self:GetVelocity() * engine.TickInterval()
+	local shootAngles = self:GetAngles()
 
 	-- Shoot a bullet
 	local bullet      = {}

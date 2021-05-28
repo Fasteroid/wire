@@ -1813,25 +1813,18 @@ function Editor:SaveFile(Line, close, SaveAs)
 
 	file.Write(Line, self:GetCode())
 
-	local f = file.Open(Line, "r", "DATA")
-	if f then
-		f:Close()
-		local panel = self.C.Val
-		timer.Simple(0, function() panel.SetText(panel, "   Saved as " .. Line) end)
-		surface.PlaySound("ambient/water/drip3.wav")
+	local panel = self.C.Val
+	timer.Simple(0, function() panel.SetText(panel, "   Saved as " .. Line) end)
+	surface.PlaySound("ambient/water/drip3.wav")
 
-		if not self.chip then self:ChosenFile(Line) end
-		if close then
-			if self.E2 then
-				GAMEMODE:AddNotify("Expression saved as " .. Line .. ".", NOTIFY_GENERIC, 7)
-			else
-				GAMEMODE:AddNotify("Source code saved as " .. Line .. ".", NOTIFY_GENERIC, 7)
-			end
-			self:Close()
+	if not self.chip then self:ChosenFile(Line) end
+	if close then
+		if self.E2 then
+			GAMEMODE:AddNotify("Expression saved as " .. Line .. ".", NOTIFY_GENERIC, 7)
+		else
+			GAMEMODE:AddNotify("Source code saved as " .. Line .. ".", NOTIFY_GENERIC, 7)
 		end
-	else
-		surface.PlaySound("buttons/button10.wav")
-		GAMEMODE:AddNotify("Failed to save file as " .. Line .. ".", NOTIFY_ERROR, 7)
+		self:Close()
 	end
 end
 
