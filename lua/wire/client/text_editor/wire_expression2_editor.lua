@@ -932,29 +932,17 @@ function Editor:InitComponents()
 end
 
 -- code1 contains the code that is not to be marked
-local code1 = [[@name 
-@inputs 
-@outputs 
-@persist 
-@trigger
-
-if( first() ){
-]]
+local code1 = "@name \n@inputs \n@outputs \n@persist \n@trigger \n\n"
 -- code2 contains the code that is to be marked, so it can simply be overwritten or deleted.
-local code2 = [[
-    #[
-        Welcome to E2 Beyond Infinity!
-        Max OPS here is 100,000.  CPU is a better measure of E2 perf impact.
-	
-        Documentation and examples are available at:
-        https://github.com/wiremod/wire/wiki/Expression-2
-        
-        This message will self destruct on key press.
-    ]#
-]]
--- code3 closes the curly boi from 1
-local code3 = [[
-}]]
+local code2 = [[#[
+    Documentation and examples are available at:
+    https://github.com/wiremod/wire/wiki/Expression-2
+
+    Discord is available at https://discord.gg/H8UKY3Y
+    Reddit is available at https://www.reddit.com/r/wiremod
+    Report any bugs you find here https://github.com/wiremod/wire/issues
+]#]]
+local defaultcode = code1 .. code2 .. "\n"
 
 function Editor:AutoSave()
 	local buffer = self:GetCode()
@@ -1526,8 +1514,8 @@ function Editor:NewScript(incurrent)
 			self:SetCode(defaultcode)
 			local ed = self:GetCurrentEditor()
 			-- mark only code2
-			ed.Start = ed:MovePosition({ 1, 1 }, code1:len() + 4)
-			ed.Caret = ed:MovePosition({ 1, 1 }, code1:len() + code2:len() - 1 )
+			ed.Start = ed:MovePosition({ 1, 1 }, code1:len())
+			ed.Caret = ed:MovePosition({ 1, 1 }, defaultcode:len())
 		else
 			self:SetCode("")
 		end
