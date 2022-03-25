@@ -150,6 +150,11 @@ function ENT:Execute()
 
 	self.context.time = self.context.time + (SysTime() - bench)
 
+	// E2BI Hud Integration
+	if IsValid( self.player ) then
+		self.player.e2_ops_total = (self.player.e2_ops_total or 0) + self.context.prf
+		self.player.e2_cpu_total = (self.player.e2_cpu_total or 0) + self.context.timebench
+	end
 	self.context:PopScope()
 
 	self.first = false -- if hooks call execute
@@ -175,9 +180,6 @@ function ENT:Execute()
 		self.GlobalScope[k] = fixDefault(wire_expression_types2[v][2])
 	end
 
-	// E2BI Hud Integration
-	self.player.e2_ops_total = (self.player.e2_ops_total or 0) + self.context.prf
-
 	if self.context.prfcount + self.context.prf - e2_softquota > e2_hardquota then
 		self:Error("Expression 2 (" .. self.name .. "): tick quota exceeded", "hard quota exceeded")
 	end
@@ -194,8 +196,7 @@ function ENT:Think()
 		self.context.prfcount = self.context.prfcount + self.context.prf - e2_softquota
 		self.context.timebench = self.context.timebench * 0.95 + self.context.time * 0.05 -- Average it over the last 20 ticks
 
-		// E2BI Hud Integration
-		self.player.e2_cpu_total = (self.player.e2_cpu_total or 0) + self.context.timebench
+
 
 		if e2_timequota > 0 and self.context.timebench > e2_timequota then
 			self:Error("Expression 2 (" .. self.name .. "): time quota exceeded", "time quota exceeded")
