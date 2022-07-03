@@ -944,7 +944,7 @@ if( first() ){
 local code2 = [[
     #[
         Welcome to E2 Beyond Infinity!
-        Max OPS here is 100,000.  CPU is a better measure of E2 perf impact.
+        Max OPS here is 200,000.  CPU is a better measure of E2 perf impact.
 	
         Documentation and examples are available at:
         https://github.com/wiremod/wire/wiki/Expression-2
