@@ -12,6 +12,8 @@ end
 
 if CLIENT then return end -- No more client
 
+local wire_forcer_permissions = CreateConVar( "wire_forcer_permissions", 1, FCVAR_ARCHIVE, "0 = no check for forcers, 1 = GravGunPunt, 2 = GravGunPickupAllowed", 0, 2)
+
 function ENT:Initialize()
 	self:PhysicsInit( SOLID_VPHYSICS )
 	self:SetMoveType( MOVETYPE_VPHYSICS )
@@ -37,15 +39,15 @@ end
 function ENT:TriggerInput( name, value )
 	if (name == "Force") then
 		self.Force = value
-		self:SetBeamHighlight(value != 0)
+		self:SetBeamHighlight(value ~= 0)
 		self:ShowOutput()
 	elseif (name == "OffsetForce") then
 		self.OffsetForce = value
-		self:SetBeamHighlight(value != 0)
+		self:SetBeamHighlight(value ~= 0)
 		self:ShowOutput()
 	elseif (name == "Velocity") then
 		self.Velocity = math.Clamp(value,-100000,100000)
-		self:SetBeamHighlight(value != 0)
+		self:SetBeamHighlight(value ~= 0)
 		self:ShowOutput()
 	elseif (name == "Length") then
 		self:SetBeamLength(math.Round(value))
@@ -68,8 +70,16 @@ function ENT:Think()
 	}
 
 	if not IsValid(trace.Entity) then return end
-	if IsValid(self:GetPlayer()) and not gamemode.Call( "GravGunPunt", self:GetPlayer(), trace.Entity ) then return end
-
+	
+	if trace.Entity:GetMoveType() == MOVETYPE_PUSH then return end
+	
+	local convar_value = wire_forcer_permissions:GetInt()
+	if convar_value==1 then
+		if not IsValid(self:GetPlayer()) or gamemode.Call( "GravGunPunt", self:GetPlayer(), trace.Entity )==false then return end
+	elseif convar_value==2 then
+		if not IsValid(self:GetPlayer()) or gamemode.Call( "GravGunPickupAllowed", self:GetPlayer(), trace.Entity )==false then return end
+	end
+	
 	if trace.Entity:GetMoveType() == MOVETYPE_VPHYSICS then
 		local phys = trace.Entity:GetPhysicsObject()
 		if not IsValid(phys) then return end
