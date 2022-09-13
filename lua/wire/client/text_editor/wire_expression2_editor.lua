@@ -1415,7 +1415,7 @@ Text here]# ]]
 		local E2s = ents.FindByClass("gmod_wire_expression2")
 		dlist2:Clear()
 		local size = 0
-		for _, v in pairs(E2s) do
+		for _, v in ipairs(E2s) do
 			local ply = v:GetNWEntity("player", NULL)
 			if IsValid(ply) and ply == LocalPlayer() or showall then
 				local nick
@@ -1840,7 +1840,15 @@ function Editor:SaveFile(Line, close, SaveAs)
 		Derma_StringRequestNoBlur("Save to New File", "", (str ~= nil and str .. "/" or "") .. self.savefilefn,
 			function(strTextOut)
 				strTextOut = string.gsub(strTextOut, ".", invalid_filename_chars)
-				self:SaveFile(self.Location .. "/" .. strTextOut .. ".txt", close)
+				local save_location = self.Location .. "/" .. strTextOut .. ".txt"
+				if file.Exists(save_location, "DATA") then
+					Derma_QueryNoBlur("The file '" .. strTextOut .. "' already exists. Do you want to overwrite it?", "File already exists", 
+					"Yes", function() self:SaveFile(save_location, close) end,
+					"No", function() end)
+				else
+					self:SaveFile(save_location, close)
+				end
+
 				self:UpdateActiveTabTitle()
 			end)
 		return
