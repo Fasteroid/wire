@@ -153,6 +153,11 @@ function ENT:Execute()
 
 	self.context.time = self.context.time + (SysTime() - bench)
 
+	// E2BI Hud Integration
+	if IsValid( self.player ) then
+		self.player.e2_ops_total = (self.player.e2_ops_total or 0) + self.context.prf
+		self.player.e2_cpu_total = (self.player.e2_cpu_total or 0) + self.context.timebench
+	end
 	self.context:PopScope()
 
 	local forceTriggerOutputs = self.first or self.duped
@@ -194,6 +199,8 @@ function ENT:Think()
 		self.context.prfbench = self.context.prfbench * 0.95 + self.context.prf * 0.05
 		self.context.prfcount = self.context.prfcount + self.context.prf - e2_softquota
 		self.context.timebench = self.context.timebench * 0.95 + self.context.time * 0.05 -- Average it over the last 20 ticks
+
+
 
 		if e2_timequota > 0 and self.context.timebench > e2_timequota then
 			self:Error("Expression 2 (" .. self.name .. "): time quota exceeded", "time quota exceeded")
