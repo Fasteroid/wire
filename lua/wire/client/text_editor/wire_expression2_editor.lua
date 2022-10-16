@@ -98,6 +98,7 @@ local colors = {
 	["operator"] = Color(224, 224, 224), -- white
 	["comment"] = Color(128, 128, 128), -- grey
 	["ppcommand"] = Color(240, 96, 240), -- purple
+	["ppcommandargs"] = Color(128, 128, 128), -- same as comment
 	["typename"] = Color(240, 160, 96), -- orange
 	["constant"] = Color(240, 160, 240), -- pink
 	["userfunction"] = Color(102, 122, 102), -- dark grayish-green
@@ -1440,9 +1441,16 @@ Text here]# ]]
 				local label = vgui.Create("DLabel", panel)
 				local idx = v:EntIndex()
 
-				local str = string.format("Name: %s\nEntity ID: '%d'\nOwner: %s",name,idx,nick)
+				local ownerStr
+				if CPPI and v:CPPIGetOwner():GetName() ~= nick then
+					ownerStr = string.format("Owner: %s | Code Author: %s", v:CPPIGetOwner():GetName(), nick)
+				else
+					ownerStr = "Owner: " .. nick
+				end
+
+				local str = string.format("Name: %s\nEntity ID: '%d'\n%s", name, idx, ownerStr)
 				if LocalPlayer():IsAdmin() then
-					str = string.format("Name: %s\nEntity ID: '%d'\n%i ops, %i%% %s\ncpu time: %ius\nOwner: %s",name,idx,0,0,"",0,nick)
+					str = string.format("Name: %s\nEntity ID: '%d'\n%i ops, %i%% %s\ncpu time: %ius\n%s", name, idx, 0, 0, "", 0, ownerStr)
 				end
 
 				label:SetText(str)
@@ -1473,7 +1481,13 @@ Text here]# ]]
 
 							local hardtext = (prfcount / e2_hardquota > 0.33) and "(+" .. tostring(math.Round(prfcount / e2_hardquota * 100)) .. "%)" or ""
 
-							label:SetText(string.format("Name: %s\nEntity ID: '%d'\n%i ops, %i%% %s\ncpu time: %ius\nOwner: %s",name,idx,prfbench,prfbench / e2_softquota * 100,hardtext,timebench*1000000,nick))
+							label:SetText(string.format(
+								"Name: %s\nEntity ID: '%d'\n%i ops, %i%% %s\ncpu time: %ius\n%s",
+								name, idx,
+								prfbench, prfbench / e2_softquota * 100, hardtext,
+								timebench * 1000000,
+								ownerStr
+							))
 						end
 					end
 				end
@@ -1813,6 +1827,7 @@ function Editor:SaveFile(Line, close, SaveAs)
 		self:Close()
 		return
 	end
+	
 	if not Line or SaveAs or Line == self.Location .. "/" .. ".txt" then
 		local str
 		if self.C.Browser.File then
@@ -1851,6 +1866,12 @@ function Editor:SaveFile(Line, close, SaveAs)
 
 				self:UpdateActiveTabTitle()
 			end)
+		return
+	end
+
+	if string.GetFileFromFilename(Line) == ".txt" then
+		surface.PlaySound("buttons/button10.wav")
+		GAMEMODE:AddNotify("Failed to save file without filename!", NOTIFY_ERROR, 7)
 		return
 	end
 
