@@ -96,7 +96,12 @@ function ENT:Initialize()
 
   WireLib.netRegister(self)
 end
-
+function ENT:Setup(ScreenWidth,ScreenHeight)
+  print(ScreenWidth)
+  print(tonumber(ScreenWidth))
+  self.ScreenHeight = tonumber(ScreenHeight) or 2
+	self.ScreenWidth = tonumber(ScreenWidth) or 16
+end
 function ENT:OnRemove()
   self.GPU:Finalize()
   self.NeedRefresh = true
@@ -292,20 +297,249 @@ local specialCharacters = {
     { x = 1, y = 0 },
     { x = 1, y = 1 },
   },
+  [132] = {
+    { x = 0, y = 0 },
+    { x = 0.5, y = 0 },
+    { x = 0.5, y = 0.5 },
+    { x = 0, y = 0.5 },
+  },
+  [133] = {
+    { x = 0.5, y = 0 },
+    { x = 1, y = 0 },
+    { x = 1, y = 0.5 },
+    { x = 0.5, y = 0.5 },
+  },
+  [134] = {
+    { x = 0, y = 0 },
+    { x = 1, y = 0 },
+    { x = 1, y = 0.5 },
+    { x = 0, y = 0.5 },
+  },
+  [135] = {
+    { x = 0, y = 0.5 },
+    { x = 0.5, y = 0.5 },
+    { x = 0.5, y = 1 },
+    { x = 0, y = 1 },
+  },
+  
+  
+  
+  
+  
+  [136] = {
+    { x = 0, y = 0 },
+    { x = 0.5, y = 0 },
+    { x = 0.5, y = 1 },
+    { x = 0, y = 1 },
+  },
+  [137] = {
+    { x = 0.5, y = 0.5 },
+    { x = 0.5, y = 0 },
+    { x = 1, y = 0 },
+    { x = 1, y = 0.5 },
+    { x = 0.5, y = 0.5 },
+    { x = 0.5, y = 1 },
+    { x = 0, y = 1 },
+    { x = 0, y = 0.5 },
+  },
+  [138] = {
+    { x = 0, y = 0 },
+    { x = 1, y = 0 },
+    { x = 1, y = 0.5 },
+    { x = 0.5, y = 0.5 },
+    { x = 0.5, y = 1 },
+    { x = 0, y = 1 },
+  },
+  [139] = {
+    { x = 0.5, y = 0.5 },
+    { x = 1, y = 0.5 },
+    { x = 1, y = 1 },
+    { x = 0.5, y = 1 },
+  },
+  [140] = {
+    { x = 0.5, y = 0.5 },
+    { x = 1, y = 0.5 },
+    { x = 1, y = 1 },
+    { x = 0.5, y = 1 },
+    { x = 0.5, y = 0.5 },
+    { x = 0, y = 0.5 },
+    { x = 0, y = 0 },
+    { x = 0.5, y = 0 },
+  },
+  [141] = {
+    { x = 0.5, y = 0 },
+    { x = 1, y = 0 },
+    { x = 1, y = 1 },
+    { x = 0.5, y = 1 },
+  },
+  [142] = {
+    
+    { x = 1, y = 0 },
+    { x = 1, y = 1 },
+    { x = 0.5, y = 1 },
+    { x = 0.5, y = 0.5 },
+    { x = 0, y = 0.5},
+    { x = 0, y = 0 },
+  },
+  
+  [143] = {
+    { x = 0, y = 0.5 },
+    { x = 1, y = 0.5 },
+    { x = 1, y = 1 },
+    { x = 0, y = 1 },
+  },
+  [144] = {
+    { x = 0, y = 1 },
+    { x = 0, y = 0 },
+    { x = 0.5, y = 0 },
+    { x = 0.5, y = 0.5 },
+    { x = 1, y = 0.5 },
+    { x = 1, y = 1 },
+  },
+  [145] = {
+    { x = 1, y = 1 },
+    { x = 0, y = 1 },
+    { x = 0, y = 0.5 },
+    { x = 0.5, y = 0.5 },
+    { x = 0.5, y = 0 },
+    { x = 1, y = 0 },
+  },
+  [146] = {
+    { x = 0, y = 0 },
+    { x = 1, y = 0 },
+    { x = 1, y = 1 },
+    { x = 0, y = 1 },
+  },
+  [147] = {
+    { x = 0.33, y = 0.66 },
+    { x = 0.33, y = 0 },
+    { x = 0.66, y = 0 },
+    { x = 0.66, y = 0.33 },
+    { x = 1, y = 0.33 },
+    { x = 1, y = 0.66 },
+  },
+  [148] = {
+    { x = 0.33, y = 0},
+    { x = 0.66, y = 0},
+    { x = 0.66, y = 1},
+    { x = 0.33, y = 1},
+  },
+  [149] = {
+    { x = 0.66, y = 0.66 },
+    { x = 0, y = 0.66 },
+    { x = 0, y = 0.33 },
+    { x = 0.33, y = 0.33 },
+    { x = 0.33, y = 0 },
+    { x = 0.66, y = 0 },
+  },
+  [150] = {
+    { x = 0, y = 0.33},
+    { x = 1, y = 0.33},
+    { x = 1, y = 0.66},
+    { x = 0, y = 0.66},
+  },
+  [151] = {
+    { x = 0.66, y = 0.33 },
+    { x = 1, y = 0.33 },
+    { x = 1, y = 0.66 },
+    { x = 0, y = 0.66 },
+    { x = 0, y = 0.33 },
+    { x = 0.33, y = 0.33 },
+    { x = 0.33, y = 0 },
+    { x = 0.66, y = 0 },
+  },
+  [152] = {
+    { x = 0.66, y = 0.33 },
+    { x = 1, y = 0.33 },
+    { x = 1, y = 0.66 },
+    { x = 0.66, y = 0.66 },
+    { x = 0.66, y = 1 },
+    { x = 0.33, y = 1 },
+    { x = 0.33, y = 0 },
+    { x = 0.66, y = 0 },
+  },
+  [153] = {
+    { x = 0.66, y = 0.66 },
+    { x = 1, y = 0.66 },
+    { x = 1, y = 0.33 },
+    { x = 0, y = 0.33 },
+    { x = 0, y = 0.66 },
+    { x = 0.33, y = 0.66 },
+    { x = 0.33, y = 1 },
+    { x = 0.66, y = 1 },
+  },
+  [154] = {
+    { x = 0.33, y = 0.33 },
+    { x = 0, y = 0.33 },
+    { x = 0, y = 0.66 },
+    { x = 0.33, y = 0.66 },
+    { x = 0.33, y = 1 },
+    { x = 0.66, y = 1 },
+    { x = 0.66, y = 0 },
+    { x = 0.33, y = 0 },
+  },
+  [155] = {
+    { x = 0.66, y = 0.33 },
+    { x = 1, y = 0.33 },
+    { x = 1, y = 0.66 },
+    { x = 0.66, y = 0.66 },
+    { x = 0.66, y = 1 },
+    { x = 0.33, y = 1 },
+    { x = 0.33, y = 0.66 },
+    { x = 0, y = 0.66 },
+    { x = 0, y = 0.33 },
+    { x = 0.33, y = 0.33 },
+    { x = 0.33, y = 0 },
+    { x = 0.66, y = 0 },
+  },
+  [156] = {
+    { x = 0.33, y = 0 },
+    { x = 0.66, y = 0 },
+    { x = 0.66, y = 0.33 },
+    { x = 0.33, y = 0.33 },
+  },
+  [157] = {
+    { x = 0.66, y = 0.33 },
+    { x = 1, y = 0.33 },
+    { x = 1, y = 0.66 },
+    { x = 0.66, y = 0.66 },
+  },
+  [158] = {
+    { x = 0.33, y = 0.66 },
+    { x = 0.66, y = 0.66 },
+    { x = 0.66, y = 1 },
+    { x = 0.33, y = 1 },
+  },
+  [159] = {
+    { x = 0, y = 0.33 },
+    { x = 0.33, y = 0.33 },
+    { x = 0.33, y = 0.66 },
+    { x = 0, y = 0.66 },
+  },
+  [160] = {
+    { x = 0.33, y = 0.33 },
+    { x = 0.66, y = 0.33 },
+    { x = 0.66, y = 0.66 },
+    { x = 0.33, y = 0.66 },
+  }
 }
 
 function ENT:DrawSpecialCharacter(c,x,y,w,h,r,g,b)
   surface.SetDrawColor(r,g,b,255)
   surface.SetTexture(0)
 
-  local vertices = specialCharacters[c]
+  local vertices = table.Copy(specialCharacters[c])
   if vertices then
-    local vertexData = {
+    --[[local vertexData = {
       { x = vertices[1].x*w+x, y = vertices[1].y*h+y },
       { x = vertices[2].x*w+x, y = vertices[2].y*h+y },
       { x = vertices[3].x*w+x, y = vertices[3].y*h+y },
-    }
-    surface.DrawPoly(vertexData)
+    }]]
+    for i=1,#vertices do
+      vertices[i].x = vertices[i].x*w+x
+      vertices[i].y = vertices[i].y*h+y
+    end
+    surface.DrawPoly(vertices)
   end
 end
 
@@ -328,8 +562,8 @@ function ENT:Draw()
     self.GPU:RenderToGPU(function()
       -- Draw terminal here
       -- W/H = 16
-      local szx = 512/31
-      local szy = 512/19
+      local szx = 1024/31
+      local szy = 1024/19
 
       local ch = self.Memory1[2042]
 
@@ -337,7 +571,7 @@ function ENT:Draw()
       local hg = 28*math.fmod(math.floor(ch / 10), 10)*self.Memory1[2027]*self.Memory1[2025] + self.Memory1[2036]
       local hr = 28*math.fmod(math.floor(ch / 100),10)*self.Memory1[2028]*self.Memory1[2025] + self.Memory1[2036]
       surface.SetDrawColor(hr,hg,hb,255)
-      surface.DrawRect(0,0,512,512)
+      surface.DrawRect(0,0,1024,1024)
 
       for ty = 0, 17 do
         for tx = 0, 29 do
