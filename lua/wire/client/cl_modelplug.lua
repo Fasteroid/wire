@@ -126,6 +126,12 @@ list.Set( "WireScreenModels", "models/hunter/plates/plate8x8.mdl", true )
 list.Set( "WireScreenModels", "models/hunter/plates/plate05x05.mdl", true )
 list.Set( "WireScreenModels", "models/hunter/blocks/cube1x1x1.mdl", true )
 list.Set( "WireScreenModels","models/props_lab/reciever01b.mdl",    true )           
+list.Set( "WireScreenModels","models/fasteroid/bull/lcd1.mdl",    true )    
+list.Set( "WireScreenModels","models/fasteroid/bull/lcd2.mdl",    true )    
+list.Set( "WireScreenModels","models/fasteroid/bull/lcd3.mdl",    true )    
+list.Set( "WireScreenModels","models/fasteroid/bull/lcd4.mdl",    true )    
+list.Set( "WireScreenModels","models/fasteroid/bull/lcd5.mdl",    true )    
+
 
 
 
@@ -459,6 +465,21 @@ list.Set( "Wire_Keyboard_Models", "models/beer/wiremod/keyboard.mdl", true )
 list.Set( "Wire_Keyboard_Models", "models/jaanus/wiretool/wiretool_input.mdl", true )
 list.Set( "Wire_Keyboard_Models", "models/props/kb_mouse/keyboard.mdl", true )
 list.Set( "Wire_Keyboard_Models", "models/props_c17/computer01_keyboard.mdl", true )
+
+list.Set( "Wire_InteractiveProp_Models", "models/props_lab/reciever01a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_lab/reciever01b.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_lab/keypad.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/beer/wiremod/numpad.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_interiors/bathtub01a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_c17/furnituresink001a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_interiors/sinkkitchen01a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_wasteland/prison_sink001a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_lab/citizenradio.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_c17/furniturewashingmachine001a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_lab/plotter.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_interiors/vendingmachinesoda01a.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_lab/reciever01c.mdl", true )
+list.Set( "Wire_InteractiveProp_Models", "models/props_trainstation/payphone001a.mdl", true )
 
 --Hydraulic
 list.Set( "Wire_Hydraulic_Models", "models/beer/wiremod/hydraulic.mdl", true )
