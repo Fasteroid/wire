@@ -99,6 +99,8 @@ hook.Add("PlayerDisconnected", "e2_print_delays_player_dc", function(ply) printD
 
 /******************************************************************************/
 
+__e2setcost(2)
+
 -- Returns whether or not the next print-message will be printed or omitted by antispam
 e2function number playerCanPrint()
 	if not checkOwner(self) then return end
@@ -111,32 +113,24 @@ local function SpecialCase( arg )
 		if (arg.isfunction) then
 			return "function " .. arg[3] .. " = (" .. arg[2] .. ")"
 		elseif (seq(arg)) then -- A table with only numerical indexes
-			local str = "["
-			for k,v in ipairs( arg ) do
-				if istable(v) then
-					if (k ~= #arg) then
-						str = str .. SpecialCase( v ) .. ","
-					else
-						str = str .. SpecialCase( v ) .. "]"
-					end
-				else
-					if (k ~= #arg) then
-						str = str .. tostring(v) .. ","
-					else
-						str = str .. tostring(v) .. "]"
-					end
-				end
+			local buf = {}
+			for k, v in ipairs( arg ) do
+				buf[k] = (type(v) == "table") and SpecialCase(v) or tostring(v)
 			end
-			return str
+			return "array(" .. table.concat(buf, ",") .. ")"
 		else -- Else it's a table with string indexes (which this function can't handle)
-			return "[table]"
+			return "table(...)"
 		end
+	elseif t == "string" then
+		return arg
 	elseif t == "Vector" then
 		return string.format("vec(%.2f,%.2f,%.2f)", arg[1], arg[2], arg[3])
 	elseif t == "Angle" then
 		return string.format("ang(%d,%d,%d)", arg[1], arg[2], arg[3])
 	end
 end
+
+__e2setcost(40)
 
 -- Prints <...> like lua's print(...), except to the chat area
 e2function void print(...args)
@@ -145,9 +139,9 @@ e2function void print(...args)
 
 	local nargs = #args
 	if nargs > 0 then
-		for i=1, math.min(nargs, 256) do
+		for i= 1, math.min(nargs, 256) do
 			local v = args[i]
-			args[i] = string.Left(SpecialCase( v ) or tostring(v), 249)
+			args[i] = string.Left(SpecialCase(v) or tostring(v), 249)
 		end
 
 		local text = table.concat(args, "\t")
@@ -157,10 +151,7 @@ e2function void print(...args)
 	end
 end
 
---- Posts <text> to the chat area. (deprecated due to print(...))
---e2 function void print(string text)
---	self.player:ChatPrint(text)
---end
+__e2setcost(30)
 
 --- Posts a string to the chat of <this>'s driver. Returns 1 if the text was printed, 0 if not.
 e2function number entity:printDriver(string text)
@@ -177,6 +168,8 @@ e2function number entity:printDriver(string text)
 end
 
 /******************************************************************************/
+
+__e2setcost(30)
 
 --- Displays a hint popup with message <text> for <duration> seconds (<duration> being clamped between 0.7 and 7).
 e2function void hint(string text, duration)
@@ -206,6 +199,8 @@ for _,cname in ipairs({ "HUD_PRINTCENTER", "HUD_PRINTCONSOLE", "HUD_PRINTNOTIFY"
 	valid_print_types[value] = true
 	E2Lib.registerConstant(cname, value)
 end
+
+__e2setcost(30)
 
 --- Same as print(<text>), but can make the text show up in different places. <print_type> can be one of the following: _HUD_PRINTCENTER, _HUD_PRINTCONSOLE, _HUD_PRINTNOTIFY, _HUD_PRINTTALK.
 e2function void print(print_type, string text)
@@ -283,6 +278,8 @@ do
 	end
 end
 
+__e2setcost(150)
+
 --- Prints an array like the lua function [[G.PrintTable|PrintTable]] does, except to the chat area.
 e2function void printTable(array arr)
 	if not checkOwner(self) then return end
@@ -297,7 +294,7 @@ end
 
 /******************************************************************************/
 
-__e2setcost(100)
+__e2setcost(150)
 
 util.AddNetworkString("wire_expression2_printColor")
 
@@ -309,17 +306,16 @@ local printColor_typeids = {
 	e = function(e) return IsValid(e) and e:IsPlayer() and e or "" end,
 }
 
-local function printColorVarArg(chip, ply, console, typeids, ...)
+local function printColorVarArg(chip, ply, console, typeids, vararg)
 	if not IsValid(ply) then return end
 	if not checkDelay(ply) then return end
-	local send_array = { ... }
 
 	local i = 1
 	for i,tp in ipairs(typeids) do
 		if printColor_typeids[tp] then
-			send_array[i] = printColor_typeids[tp](send_array[i])
+			vararg[i] = printColor_typeids[tp](vararg[i])
 		else
-			send_array[i] = ""
+			vararg[i] = ""
 		end
 		if i == 256 then break end
 		i = i + 1
@@ -328,7 +324,7 @@ local function printColorVarArg(chip, ply, console, typeids, ...)
 	net.Start("wire_expression2_printColor")
 		net.WriteEntity(chip)
 		net.WriteBool(console)
-		net.WriteTable(send_array)
+		net.WriteTable(vararg)
 	net.Send(ply)
 end
 
@@ -373,8 +369,8 @@ end
 
 
 --- Works like [[chat.AddText]](...). Parameters can be any amount and combination of numbers, strings, player entities, color vectors (both 3D and 4D).
-e2function void printColor(...)
-	printColorVarArg(nil, self.player, false, typeids, ...)
+e2function void printColor(...args)
+	printColorVarArg(nil, self.player, false, typeids, args)
 end
 
 --- Like printColor(...), except taking an array containing all the parameters.
@@ -383,8 +379,8 @@ e2function void printColor(array arr)
 end
 
 --- Works like MsgC(...). Parameters can be any amount and combination of numbers, strings, player entities, color vectors (both 3D and 4D).
-e2function void printColorC(...)
-	printColorVarArg(nil, self.player, true, typeids, ...)
+e2function void printColorC(...args)
+	printColorVarArg(nil, self.player, true, typeids, args)
 end
 
 --- Like printColorC(...), except taking an array containing all the parameters.
@@ -393,7 +389,7 @@ e2function void printColorC(array arr)
 end
 
 --- Like printColor(...), except printing in <this>'s driver's chat area instead of yours.
-e2function void entity:printColorDriver(...)
+e2function void entity:printColorDriver(...args)
 	if not checkVehicle(self, this) then return end
 
 	local driver = this:GetDriver()
@@ -401,7 +397,7 @@ e2function void entity:printColorDriver(...)
 
 	if not checkDelay( driver ) then return end
 
-	printColorVarArg(self.entity, driver, false, typeids, ...)
+	printColorVarArg(self.entity, driver, false, typeids, args)
 end
 
 --- Like printColor(R), except printing in <this>'s driver's chat area instead of yours.
