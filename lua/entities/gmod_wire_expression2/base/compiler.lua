@@ -243,7 +243,7 @@ local CompileVisitors = {
 		local cost, nstmts = self.scope.data.ops, #stmts
 		self.scope.data.ops = 0
 
-		if self.scope:ResolveData("loop") then -- Inside loop, check if continued or broken
+		if self.scope:ResolveData("loop") or self.scope:ResolveData("switch_case") then -- Inside loop or switch case, check if continued or broken
 			return function(state) ---@param state RuntimeContext
 				state.prf = state.prf + cost
 				if state.prf > TickQuota then error("perf", 0) end
@@ -756,7 +756,8 @@ local CompileVisitors = {
 					end
 				end
 			end
-		else -- Todo: In the future with the optimizer, or here still, make this output a different function when it doesn't early return, and/or has no parameters as an optimization.
+		else -- Todo: Make this output a different function when it doesn't early return, and/or has no parameters as an optimization.
+			local nargs = #param_types
 			function fn.op(state, args) ---@param state RuntimeContext
 				local save = state:SaveScopes()
 
@@ -765,8 +766,8 @@ local CompileVisitors = {
 				state.Scope = scope
 				state.ScopeID = 1
 
-				for i, arg in ipairs(args) do
-					scope[param_names[i]] = arg
+				for i = 1, nargs do
+					scope[param_names[i]] = args[i]
 				end
 
 				block(state)
@@ -1427,7 +1428,13 @@ local CompileVisitors = {
 					for k = 1, nargs do
 						rargs[k] = args[k](state)
 					end
-					return state.funcs[full_sig](state, rargs, types)
+
+					local fn = state.funcs[full_sig]
+					if fn then
+						return state.funcs[full_sig](state, rargs, types)
+					else
+						E2Lib.raiseException("No such function defined at runtime: " .. full_sig, 0, state.trace)
+					end
 				end, fn_data.returns and (fn_data.returns[1] ~= "" and fn_data.returns[1] or nil)
 			end
 		elseif fn_data.attrs["legacy"] then -- Not a user function. Can get function to call at compile time.
@@ -1490,7 +1497,13 @@ local CompileVisitors = {
 					for k = 1, nargs do
 						rargs[k + 1] = args[k](state)
 					end
-					return state.funcs[full_sig](state, rargs, types)
+
+					local fn = state.funcs[full_sig]
+					if fn then
+						return state.funcs[full_sig](state, rargs, types)
+					else
+						E2Lib.raiseException("No such method defined at runtime: " .. full_sig, 0, state.trace)
+					end
 				end, fn_data.returns and (fn_data.returns[1] ~= "" and fn_data.returns[1] or nil)
 			end
 		elseif fn_data.attrs["legacy"] then
