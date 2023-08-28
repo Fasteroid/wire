@@ -23,6 +23,8 @@ end
 local defaultPrintDelay = 0.3
 -- the amount of "charges" a player has by default
 local defaultMaxPrints = 15
+-- default max print length
+local defaultMaxLength = 1000
 
 -- Contains the amount of "charges" a player has, i.e. the amount of print-statements can be executed before
 -- the messages being omitted. The defaultPrintDelay is the time required to add one additional charge to the
