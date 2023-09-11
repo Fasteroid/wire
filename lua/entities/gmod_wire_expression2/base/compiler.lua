@@ -442,8 +442,10 @@ local CompileVisitors = {
 		if not key_type then -- If no key type specified, fall back to string for tables and number for everything else.
 			if item_ty == "t" then -- we need to default, throw a warning
 				self:Warning("This key will default to type (string). Annotate it with :string or :number", key.trace)
+				key_type = "s"
+			else
+				key_type = "n"
 			end
-			key_type = (has_strkey and "s") or "n"
 		end
 
 		local block, cost = self:Scope(function(scope)
