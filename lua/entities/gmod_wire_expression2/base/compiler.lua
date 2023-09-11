@@ -438,13 +438,20 @@ local CompileVisitors = {
 		local key, key_type, value, value_type = data[1], data[2] and self:CheckType(data[2]), data[3], self:CheckType(data[4])
 
 		local item, item_ty = self:CompileExpr(data[5])
-		
+
+
 		if not key_type then -- If no key type specified, fall back to string for tables and number for everything else.
-			if item_ty == "t" then -- we need to default, throw a warning
+
+			local has_strkey = self:GetOperator("iter", { "s", value_type, "=", item_ty }) ~= nil
+			local has_numkey = self:GetOperator("iter", { "n", value_type, "=", item_ty }) ~= nil
+
+			print(has_numkey, has_strkey)
+
+			if has_strkey and has_numkey then -- we need to default, throw a warning
 				self:Warning("This key will default to type (string). Annotate it with :string or :number", key.trace)
 				key_type = "s"
 			else
-				key_type = "n"
+				key_type = has_strkey and "s" or has_numkey and "n" or "nothing?"
 			end
 		end
 
@@ -1737,8 +1744,9 @@ function Compiler:GetOperator(variant, types, trace)
 		-- If no equals operator present, default to just basic lua equals.
 		return DEFAULT_EQUALS, "n", false, true
 	end
-
-	self:Error("No such operator: " .. variant .. " (" .. table.concat(types, ", ") .. ")", trace)
+	if trace then
+		self:Error("No such operator: " .. variant .. " (" .. table.concat(types, ", ") .. ")", trace)
+	end
 end
 
 ---@param name string
