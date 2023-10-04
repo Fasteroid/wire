@@ -249,10 +249,9 @@ local CompileVisitors = {
 				if state.prf > TickQuota then error("perf", 0) end
 
 				for i = 1, nstmts do
-					if state.__break__ or state.__return__ or state.__continue__ then break end
-
 					state.trace = traces[i]
 					stmts[i](state)
+					if state.__break__ or state.__return__ or state.__continue__ then break end
 				end
 			end
 		elseif self.scope:ResolveData("function") then -- If inside a function, check if returned.
@@ -261,9 +260,9 @@ local CompileVisitors = {
 				if state.prf > TickQuota then error("perf", 0) end
 
 				for i = 1, nstmts do
-					if state.__return__ then break end
 					state.trace = traces[i]
 					stmts[i](state)
+					if state.__return__ then break end
 				end
 			end
 		else -- Most optimized case, not inside a function or loop.
@@ -444,7 +443,7 @@ local CompileVisitors = {
 				self:Warning("This key will default to type (string). Annotate it with :string or :number", key.trace)
 				key_type = "s"
 			else
-				self:Warning("This key will default to type (number). Annotate it with :string or :number", key.trace)
+				self:Warning("This key will default to type (number). Annotate it with :number / :type", key.trace)
 				key_type = "n"
 			end
 		end
@@ -569,16 +568,22 @@ local CompileVisitors = {
 		end
 	end,
 
-	---@param data { [1]: Node, [2]: Token<string>, [3]: Node }
+	---@param data { [1]: Node, [2]: Token<string>, [3]: Token<string>?, [4]: Node }
 	[NodeVariant.Try] = function (self, trace, data)
-		local try_block, catch_block, err_var = nil, nil, data[2]
+		local try_block, catch_block, err_var, err_ty = nil, nil, data[2], data[3]
 		self:Scope(function(scope)
 			try_block = self:CompileStmt(data[1])
 		end)
 
+		if err_ty then
+			self:Assert(err_ty.value == "string", "Error type can only be string, for now", err_ty.trace)
+		else
+			self:Warning("You should explicitly annotate the error type as :string", err_var.trace)
+		end
+
 		self:Scope(function (scope)
 			scope:DeclVar(err_var.value, { initialized = true, trace_if_unused = err_var.trace, type = "s" })
-			catch_block = self:CompileStmt(data[3])
+			catch_block = self:CompileStmt(data[4])
 		end)
 
 		self.scope.data.ops = self.scope.data.ops + 5
@@ -697,7 +702,7 @@ local CompileVisitors = {
 			local last, non_variadic = #param_types, #param_types - 1
 			if variadic_ty == "r" then
 				function fn.op(state, args) ---@param state RuntimeContext
-					local save = state:SaveScopes()
+					local s_scopes, s_scopeid, s_scope = state.Scopes, state.ScopeID, state.Scope
 
 					local scope = { vclk = {} } -- Hack in the fact that functions don't have upvalues right now.
 					state.Scopes = { [0] = state.GlobalScope, [1] = scope }
@@ -716,17 +721,19 @@ local CompileVisitors = {
 
 					scope[param_names[last]] = a
 					block(state)
-					state:LoadScopes(save)
+
+					state.Scopes, state.ScopeID, state.Scope = s_scopes, s_scopeid, s_scope
+
 					if state.__return__ then
 						state.__return__ = false
 						return state.__returnval__
 					elseif return_type then
-						E2Lib.raiseException("Expected function return at runtime of type (" .. return_type .. ")", 0, state.trace)
+						state:forceThrow("Expected function return at runtime of type (" .. return_type .. ")")
 					end
 				end
 			else -- table
 				function fn.op(state, args, arg_types) ---@param state RuntimeContext
-					local save = state:SaveScopes()
+					local s_scopes, s_scopeid, s_scope = state.Scopes, state.ScopeID, state.Scope
 
 					local scope = { vclk = {} } -- Hack in the fact that functions don't have upvalues right now.
 					state.Scopes = { [0] = state.GlobalScope, [1] = scope }
@@ -745,20 +752,21 @@ local CompileVisitors = {
 					scope[param_names[last]] = { s = {}, stypes = {}, n = n, ntypes = ntypes, size = last }
 
 					block(state)
-					state:LoadScopes(save)
+
+					state.Scopes, state.ScopeID, state.Scope = s_scopes, s_scopeid, s_scope
 
 					if state.__return__ then
 						state.__return__ = false
 						return state.__returnval__
 					elseif return_type then
-						E2Lib.raiseException("Expected function return at runtime of type (" .. return_type .. ")", 0, state.trace)
+						state:forceThrow("Expected function return at runtime of type (" .. return_type .. ")")
 					end
 				end
 			end
 		else -- Todo: Make this output a different function when it doesn't early return, and/or has no parameters as an optimization.
 			local nargs = #param_types
 			function fn.op(state, args) ---@param state RuntimeContext
-				local save = state:SaveScopes()
+				local s_scopes, s_scopeid, s_scope = state.Scopes, state.ScopeID, state.Scope
 
 				local scope = { vclk = {} } -- Hack in the fact that functions don't have upvalues right now.
 				state.Scopes = { [0] = state.GlobalScope, [1] = scope }
@@ -770,13 +778,14 @@ local CompileVisitors = {
 				end
 
 				block(state)
-				state:LoadScopes(save)
+
+				state.Scopes, state.ScopeID, state.Scope = s_scopes, s_scopeid, s_scope
 
 				if state.__return__ then
 					state.__return__ = false
 					return state.__returnval__
 				elseif return_type then
-					E2Lib.raiseException("Expected function return at runtime of type (" .. return_type .. ")", 0, state.trace)
+					state:forceThrow("Expected function function at runtime of type (" .. return_type .. ")")
 				end
 			end
 		end
@@ -842,7 +851,7 @@ local CompileVisitors = {
 		end
 
 		return function(state) ---@param state RuntimeContext
-			local save = state:SaveScopes()
+			local s_scopes, s_scopeid, s_scope = state.Scopes, state.ScopeID, state.Scope
 
 			local scope = { vclk = {} } -- Isolated scope, except global variables are shared.
 			state.Scope = scope
@@ -851,7 +860,7 @@ local CompileVisitors = {
 
 			include[2](state)
 
-			state:LoadScopes(save)
+			state.Scopes, state.ScopeID, state.Scope = s_scopes, s_scopeid, s_scope
 		end
 	end,
 
@@ -1117,7 +1126,7 @@ local CompileVisitors = {
 		var.trace_if_unused = nil
 
 		self:AssertW(var.initialized, "Use of variable [" .. name .. "] before initialization", trace)
-		self.scope.data.ops = self.scope.data.ops + 0.5
+		self.scope.data.ops = self.scope.data.ops + 0.25
 
 		local id = var.depth
 		return function(state) ---@param state RuntimeContext
@@ -1333,12 +1342,11 @@ local CompileVisitors = {
 			self.delta_vars[var_name] = true
 
 			local sub_op, sub_ty = self:GetOperator("sub", { var.type, var.type }, trace)
-			local id = var.depth
 
 			return function(state) ---@param state RuntimeContext
-				local current, past = state.Scopes[id][var_name], state.Scopes[id]["$" .. var_name]
+				local current, past = state.GlobalScope[var_name], state.GlobalScope["$" .. var_name]
 				local diff = sub_op(state, current, past)
-				state.Scopes[id]["$" .. var_name] = current
+				state.GlobalScope["$" .. var_name] = current
 				return diff
 			end, sub_ty
 		elseif data[1] == Operator.Trg then -- ~
@@ -1439,7 +1447,7 @@ local CompileVisitors = {
 					if fn then
 						return state.funcs[full_sig](state, rargs, types)
 					else
-						E2Lib.raiseException("No such function defined at runtime: " .. full_sig, 0, state.trace)
+						state:forceThrow("No such function defined at runtime: " .. full_sig)
 					end
 				end, fn_data.returns and (fn_data.returns[1] ~= "" and fn_data.returns[1] or nil)
 			end
@@ -1508,7 +1516,7 @@ local CompileVisitors = {
 					if fn then
 						return state.funcs[full_sig](state, rargs, types)
 					else
-						E2Lib.raiseException("No such method defined at runtime: " .. full_sig, 0, state.trace)
+						state:forceThrow("No such method defined at runtime: " .. full_sig)
 					end
 				end, fn_data.returns and (fn_data.returns[1] ~= "" and fn_data.returns[1] or nil)
 			end
@@ -1563,7 +1571,7 @@ local CompileVisitors = {
 			if fn then -- first check if user defined any functions that match signature
 				local r = state.funcs_ret[sig]
 				if r ~= ret_type then
-					E2Lib.raiseException( "Mismatching return types. Got " .. (r or "void") .. ", expected " .. (ret_type or "void"), 0, state.trace)
+					state:forceThrow( "Mismatching return types. Got " .. (r or "void") .. ", expected " .. (ret_type or "void"))
 				end
 
 				return fn(state, rargs, arg_types)
@@ -1572,7 +1580,7 @@ local CompileVisitors = {
 				if fn then
 					local r = fn[2]
 					if r ~= ret_type and not (ret_type == nil and r == "") then
-						E2Lib.raiseException( "Mismatching return types. Got " .. (r or "void") .. ", expected " .. (ret_type or "void"), 0, state.trace)
+						state:forceThrow( "Mismatching return types. Got " .. (r or "void") .. ", expected " .. (ret_type or "void"))
 					end
 
 					if fn.attributes.legacy then
@@ -1591,7 +1599,7 @@ local CompileVisitors = {
 						if fn then
 							local r = fn[2]
 							if r ~= ret_type and not (ret_type == nil and r == "") then
-								E2Lib.raiseException( "Mismatching return types. Got " .. (r or "void") .. ", expected " .. (ret_type or "void"), 0, state.trace)
+								state:forceThrow("Mismatching return types. Got " .. (r or "void") .. ", expected " .. (ret_type or "void"))
 							end
 
 							if fn.attributes.legacy then
@@ -1602,21 +1610,19 @@ local CompileVisitors = {
 								return fn[3](state, largs, arg_types)
 							elseif varsig == "array(...)" then -- Need this since can't enforce compile time argument type restrictions on string calls. Woop. Array creation should not be a function..
 								local i = 1
-								while i < #arg_types do
+								while i <= #arg_types do
 									local ty = arg_types[i]
 									if BLOCKED_ARRAY_TYPES[ty] then
 										table.remove(rargs, i)
 										table.remove(arg_types, i)
-										state:throw("Cannot use type " .. ty .. " for argument #" .. i .. " in stringcall array creation")
+										state:forceThrow("Cannot use type " .. ty .. " for argument #" .. i .. " in stringcall array creation")
 									else
 										i = i + 1
 									end
 								end
-
-								return fn[3](state, rargs, arg_types)
-							else
-								return fn[3](state, rargs, arg_types)
 							end
+
+							return fn[3](state, rargs, arg_types)
 						else
 							local varsig = fn_name .. "(" .. type_sig:sub(1, i) .. "..r)"
 							local fn = state.funcs[varsig]
@@ -1624,7 +1630,7 @@ local CompileVisitors = {
 							if fn then
 								for _, ty in ipairs(arg_types) do -- Just block them entirely. Current method of finding variadics wouldn't allow a proper solution that works with x<yz> types. Would need to rewrite all of this which I don't think is worth it when already nobody is going to use this functionality.
 									if BLOCKED_ARRAY_TYPES[ty] then
-										E2Lib.raiseException("Cannot pass array into variadic array function", 0, state.trace)
+										state:forceThrow("Cannot pass array into variadic array function")
 									end
 								end
 
@@ -1638,7 +1644,8 @@ local CompileVisitors = {
 							end
 						end
 					end
-					E2Lib.raiseException("No such function: " .. fn_name .. arg_sig, 0, state.trace)
+
+					state:forceThrow("No such function: " .. fn_name .. arg_sig)
 				end
 			end
 		end, ret_type
@@ -1696,7 +1703,7 @@ local CompileVisitors = {
 		end)
 
 		self.registered_events[name][self.include or "__main__"] = function(state, args) ---@param state RuntimeContext
-			local save = state:SaveScopes()
+			local s_scopes, s_scopeid, s_scope = state.Scopes, state.ScopeID, state.Scope
 
 			local scope = { vclk = {} } -- Hack in the fact that functions don't have upvalues right now.
 			state.Scopes = { [0] = state.GlobalScope, [1] = scope }
@@ -1709,7 +1716,7 @@ local CompileVisitors = {
 
 			block(state)
 
-			state:LoadScopes(save)
+			state.Scopes, state.ScopeID, state.Scope = s_scopes, s_scopeid, s_scope
 		end
 
 		return nil

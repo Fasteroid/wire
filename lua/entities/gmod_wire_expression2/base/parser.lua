@@ -490,11 +490,16 @@ function Parser:Stmt()
 				self:Error("Variable expected after left parenthesis (() in catch statement")
 			end
 
+			local ty
+			if self:Consume(TokenVariant.Operator, Operator.Col) then
+				ty = self:Assert(self:Type(), "Expected type name after : for error value", trace)
+			end
+
 			if not self:Consume(TokenVariant.Grammar, Grammar.RParen) then
 				self:Error("Right parenthesis ()) missing, to close catch statement")
 			end
 
-			return Node.new(NodeVariant.Try, {stmt, err_ident, self:Block()}, trace:stitch(self:Prev().trace))
+			return Node.new(NodeVariant.Try, {stmt, err_ident, ty, self:Block()}, trace:stitch(self:Prev().trace))
 		else
 			self:Error("Try block must be followed by catch statement")
 		end
@@ -696,60 +701,72 @@ function Parser:RecurseLeft(func, variant, tbl)
 end
 
 function Parser:Expr2()
-	return self:RecurseLeft(self.Expr3, NodeVariant.ExprLogicalOp, { Operator.Or, Operator.And })
+	return self:RecurseLeft(self.Expr3, NodeVariant.ExprLogicalOp, { Operator.Or })
 end
 
 function Parser:Expr3()
-	return self:RecurseLeft(self.Expr4, NodeVariant.ExprBinaryOp, { Operator.Band, Operator.Bor, Operator.Bxor })
+	return self:RecurseLeft(self.Expr4, NodeVariant.ExprLogicalOp, { Operator.And })
 end
 
 function Parser:Expr4()
-	return self:RecurseLeft(self.Expr5, NodeVariant.ExprEquals, { Operator.Eq, Operator.Neq })
+	return self:RecurseLeft(self.Expr5, NodeVariant.ExprBinaryOp, { Operator.Bor })
 end
 
 function Parser:Expr5()
-	return self:RecurseLeft(self.Expr6, NodeVariant.ExprComparison, { Operator.Gth, Operator.Lth, Operator.Geq, Operator.Leq })
+	return self:RecurseLeft(self.Expr6, NodeVariant.ExprBinaryOp, { Operator.Band })
 end
 
 function Parser:Expr6()
-	return self:RecurseLeft(self.Expr7, NodeVariant.ExprBitShift, { Operator.Bshr, Operator.Bshl })
+	return self:RecurseLeft(self.Expr7, NodeVariant.ExprBinaryOp, { Operator.Bxor })
 end
 
 function Parser:Expr7()
-	return self:RecurseLeft(self.Expr8, NodeVariant.ExprArithmetic, { Operator.Add, Operator.Sub })
+	return self:RecurseLeft(self.Expr8, NodeVariant.ExprEquals, { Operator.Eq, Operator.Neq })
 end
 
 function Parser:Expr8()
-	return self:RecurseLeft(self.Expr9, NodeVariant.ExprArithmetic, { Operator.Mul, Operator.Div, Operator.Mod })
+	return self:RecurseLeft(self.Expr9, NodeVariant.ExprComparison, { Operator.Gth, Operator.Lth, Operator.Geq, Operator.Leq })
 end
 
 function Parser:Expr9()
-	return self:RecurseLeft(self.Expr10, NodeVariant.ExprArithmetic, { Operator.Exp })
+	return self:RecurseLeft(self.Expr10, NodeVariant.ExprBitShift, { Operator.Bshr, Operator.Bshl })
+end
+
+function Parser:Expr10()
+	return self:RecurseLeft(self.Expr11, NodeVariant.ExprArithmetic, { Operator.Add, Operator.Sub })
+end
+
+function Parser:Expr11()
+	return self:RecurseLeft(self.Expr12, NodeVariant.ExprArithmetic, { Operator.Mul, Operator.Div, Operator.Mod })
+end
+
+function Parser:Expr12()
+	return self:RecurseLeft(self.Expr13, NodeVariant.ExprArithmetic, { Operator.Exp })
 end
 
 ---@return Node
-function Parser:Expr10()
+function Parser:Expr13()
 	if self:ConsumeLeading(TokenVariant.Operator, Operator.Add) then
-		return self:Expr11()
+		return self:Expr14()
 	elseif self:Consume(TokenVariant.Operator, Operator.Add) then
 		self:Error("Identity operator (+) must not be succeeded by whitespace")
 	end
 
 	if self:ConsumeLeading(TokenVariant.Operator, Operator.Sub) then
-		local trace, exp = self:Prev().trace, self:Expr11()
+		local trace, exp = self:Prev().trace, self:Expr14()
 		return Node.new(NodeVariant.ExprUnaryOp, { Operator.Sub, exp }, trace:stitch(exp.trace))
 	elseif self:Consume(TokenVariant.Operator, Operator.Sub) then
 		self:Error("Negation operator (-) must not be succeeded by whitespace")
 	end
 
 	if self:ConsumeLeading(TokenVariant.Operator, Operator.Not) then
-		local trace, exp = self:Prev().trace, self:Expr10()
+		local trace, exp = self:Prev().trace, self:Expr13()
 		return Node.new(NodeVariant.ExprUnaryOp, { Operator.Not, exp }, trace:stitch(exp.trace))
 	elseif self:Consume(TokenVariant.Operator, Operator.Not) then
 		self:Error("Logical not operator (!) must not be succeeded by whitespace")
 	end
 
-	return self:Expr11()
+	return self:Expr14()
 end
 
 ---@return Node[]
@@ -823,8 +840,8 @@ function Parser:ArgumentsKV(start_bracket, end_bracket)
 end
 
 ---@return Node
-function Parser:Expr11()
-	local expr = self:Expr12()
+function Parser:Expr14()
+	local expr = self:Expr15()
 
 	while true do
 		if self:ConsumeTailing(TokenVariant.Operator, Operator.Col) then
@@ -850,10 +867,7 @@ function Parser:Expr11()
 				local args, typ = self:Arguments()
 
 				if self:Consume(TokenVariant.Grammar, Grammar.LSquare) then
-					typ = self:Consume(TokenVariant.LowerIdent)
-					if not typ then
-						self:Error("Return type operator ([]) requires a lower case type [type]")
-					end
+					typ = self:Assert(self:Type(), "Return type operator ([]) requires a lower case type [type]")
 
 					if not self:Consume(TokenVariant.Grammar, Grammar.RSquare) then
 						self:Error("Right square bracket (]) missing, to close return type operator [type]")
@@ -871,7 +885,7 @@ function Parser:Expr11()
 end
 
 ---@return Node
-function Parser:Expr12()
+function Parser:Expr15()
 	if self:Consume(TokenVariant.Grammar, Grammar.LParen) then
 		local expr = self:Expr()
 		self:Assert( self:Consume(TokenVariant.Grammar, Grammar.RParen), "Right parenthesis ()) missing, to close grouped equation" )
@@ -1040,7 +1054,7 @@ function Parser:Expr12()
 	elseif self:Consume(TokenVariant.Keyword, Keyword.Else) then
 		self:Error("Else keyword (else) must be part of an if-statement")
 	else
-		self:Error("Unexpected token found (" .. self:At():display() .. ")")
+		self:Error("Unexpected token found (" .. self:At():display() .. ")", self:At().trace)
 	end
 
 	error("unreachable")
