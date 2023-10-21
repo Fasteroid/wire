@@ -38,11 +38,7 @@ end
 registerType("effect", "xef", nil,
 	nil,
 	nil,
-	function(retval)
-		if retval == nil then return end
-		local _type = type(retval)
-		if _type~="CEffectData" then error("Return value is neither nil nor a CEffectData, but a "..type(retval).."!",0) end
-	end,
+	nil,
 	function(v)
 		return type(v)~="CEffectData"
 	end
@@ -170,8 +166,10 @@ end
 e2function void effect:play(string name)
 	if not this then return self:throw("Invalid effect!", nil) end
 	if not isAllowed(self) then return self:throw("Effect play() burst limit reached!", nil) end
+
+	name = name:lower()
 	if effect_blacklist[name] then return self:throw("This effect is blacklisted!", nil) end
-	if hook.Run( "Expression2_CanEffect", name:lower(), self ) == false then return self:throw("A hook prevented this function from running", nil) end
+	if hook.Run( "Expression2_CanEffect", name, self ) == false then return self:throw("A hook prevented this function from running", nil) end
 
 	fire(self, this, name)
 end
