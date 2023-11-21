@@ -94,12 +94,14 @@ local NodeVariant = {
 	ExprIndex = 29,	-- `<EXPR>[<EXPR>, <type>?]`
 	ExprGrouped = 30, -- (<EXPR>)
 	ExprCall = 31, -- `call()`
-	ExprStringCall = 32, -- `""()` (Temporary until lambdas are made)
+	ExprDynCall = 32, -- `Var()`
 	ExprUnaryWire = 33, -- `~Var` `$Var` `->Var`
 	ExprArray = 34, -- `array(1, 2, 3)` or `array(1 = 2, 2 = 3)`
 	ExprTable = 35, -- `table(1, 2, 3)` or `table(1 = 2, "test" = 3)`
-	ExprLiteral = 36, -- `"test"` `5e2` `4.023` `4j`
-	ExprIdent = 37 -- `Variable`
+	ExprFunction = 36, -- `function() {}`
+	ExprLiteral = 37, -- `"test"` `5e2` `4.023` `4j`
+	ExprIdent = 38, -- `Variable`
+	ExprConstant = 39, -- `_FOO`
 }
 
 Parser.Variant = NodeVariant
@@ -359,7 +361,7 @@ function Parser:Stmt()
 		return Node.new(NodeVariant.Const, { name, value }, trace:stitch(self:Prev().trace))
 	end
 
-	local is_local, var = self:Consume(TokenVariant.Keyword, Keyword.Local), self:Consume(TokenVariant.Ident)
+	local is_local, var = self:Consume(TokenVariant.Keyword, Keyword.Local) or self:Consume(TokenVariant.Keyword, Keyword.Let), self:Consume(TokenVariant.Ident)
 	if not var then
 		self:Assert(not is_local, "Invalid operator (local) must be used for variable declaration.")
 	else
@@ -457,7 +459,7 @@ function Parser:Stmt()
 
 	-- Function definition
 	if self:Consume(TokenVariant.Keyword, Keyword.Function) then
-		local trace, type_or_name = self:Prev().trace, self:Assert( self:Consume(TokenVariant.LowerIdent), "Expected function return type or name after function keyword")
+		local trace, type_or_name = self:Prev().trace, self:Assert( self:Type(), "Expected function return type or name after function keyword")
 
 		if self:Consume(TokenVariant.Operator, Operator.Col) then
 			-- function entity:xyz()
@@ -473,8 +475,8 @@ function Parser:Stmt()
 				-- function void test()
 				return Node.new(NodeVariant.Function, { type_or_name, nil, meta_or_name, self:Parameters(), self:Block() }, trace:stitch(self:Prev().trace))
 			end
-		else
-			-- function test()
+		else -- function test()
+			self:Assert( type_or_name.value ~= "function", "Identifier expected. \"function\" is a reserved keyword that cannot be used here", trace )
 			return Node.new(NodeVariant.Function, { nil, nil, type_or_name, self:Parameters(), self:Block() }, trace:stitch(self:Prev().trace))
 		end
 	end
@@ -533,8 +535,16 @@ end
 ---@return Token<string>?
 function Parser:Type()
 	local type = self:Consume(TokenVariant.LowerIdent)
-	if type and type.value == "normal" then
-		type.value = "number"
+	if type then
+		if type.value == "normal" then
+			type.value = "number"
+		end
+	else -- workaround to allow "function" as type while also being a keyword
+		local fn = self:Consume(TokenVariant.Keyword, Keyword.Function)
+		if fn then
+			fn.value, fn.variant = "function", TokenVariant.LowerIdent
+			return fn
+		end
 	end
 	return type
 end
@@ -885,7 +895,7 @@ function Parser:Expr14()
 					end
 				end
 
-				return Node.new(NodeVariant.ExprStringCall, { expr, args, typ }, expr.trace:stitch(self:Prev().trace))
+				return Node.new(NodeVariant.ExprDynCall, { expr, args, typ }, expr.trace:stitch(self:Prev().trace))
 			else
 				break
 			end
@@ -913,6 +923,11 @@ function Parser:Expr15()
 		end
 
 		return Node.new(NodeVariant.ExprCall, { fn, self:Arguments() }, fn.trace:stitch(self:Prev().trace))
+	end
+
+	local fn = self:Consume(TokenVariant.Keyword, Keyword.Function)
+	if fn then
+		return Node.new(NodeVariant.ExprFunction, { self:Parameters(), self:Assert(self:Block(), "Expected block to follow function") }, fn.trace:stitch(self:Prev().trace))
 	end
 
 	-- Decimal / Hexadecimal / Binary numbers
@@ -959,7 +974,11 @@ function Parser:Expr15()
 				else
 					self:Error("Operator (" .. v[1] .. ") must be followed by variable")
 				end
-			end ---@cast ident Token # Know it isn't nil from above check
+			end ---@cast ident Token
+
+			if v[2] == Operator.Dlt then -- TODO: Delete this and move to analyzer step
+				self.delta_vars[ident.value] = true
+			end
 
 			return Node.new(NodeVariant.ExprUnaryWire, { v[2], ident }, op.trace:stitch(ident.trace))
 		end
@@ -986,6 +1005,11 @@ function Parser:Expr15()
 	local ident =  self:Consume(TokenVariant.Ident)
 	if ident then
 		return Node.new(NodeVariant.ExprIdent, ident, ident.trace)
+	end
+
+	local constant = self:Consume(TokenVariant.Constant)
+	if constant then
+		return Node.new(NodeVariant.ExprConstant, constant, constant.trace)
 	end
 
 	-- Error Messages

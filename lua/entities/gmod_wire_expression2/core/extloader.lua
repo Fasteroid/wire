@@ -137,7 +137,6 @@ e2_include("wirelink.lua")
 e2_include("console.lua")
 e2_include("find.lua")
 e2_include("files.lua")
-e2_include("cl_files.lua")
 e2_include("globalvars.lua")
 e2_include("ranger.lua")
 e2_include("sound.lua")
@@ -169,6 +168,7 @@ e2_include("steamidconv.lua")
 e2_include("easings.lua")
 e2_include("damage.lua")
 e2_include("remote.lua")
+e2_include("egpobjects.lua")
 
 -- Load serverside files here, they need additional parsing
 do

@@ -85,6 +85,8 @@ function wire_expression2_CallHook(hookname, ...)
 end
 
 function E2Lib.registerCallback(event, callback)
+	assert(isfunction(callback), "registerCallback must be given a proper callback function!")
+
 	if not wire_expression_callbacks[event] then wire_expression_callbacks[event] = {} end
 	local currExt = E2Lib.currentextension
 	table.insert(wire_expression_callbacks[event], function(a, b, c, d, e, f) E2Lib.currentextension = currExt return callback(a, b, c, d, e, f) end)
@@ -172,13 +174,46 @@ function registerFunction(name, pars, rets, func, cost, argnames, attributes)
 	wire_expression2_funclist[name] = true
 end
 
-function E2Lib.registerConstant(name, value)
+---@alias E2Constant string | number | E2Constant[]
+
+local TypeMap = {
+	["number"] = "n", ["string"] = "s",
+	["Vector"] = "v", ["Angle"] = "a",
+	["table"] = "r"
+}
+
+local ValidArrayTypes = {
+	["number"] = true, ["string"] = true,
+	["Vector"] = true, ["Angle"] = true
+}
+
+---@param value E2Constant
+---@param description string?
+function E2Lib.registerConstant(name, value, description)
 	if name:sub(1, 1) ~= "_" then name = "_" .. name end
 
 	local ty = type(value)
-	assert(ty == "number" or ty == "string", "Invalid value passed to registerConstant (must be number or string)")
+	local e2ty = TypeMap[ty]
 
-	wire_expression2_constants[name] = value
+	if e2ty then
+		if ty == "table" then -- ensure it's actually an array (sequential and valid types)
+			local i = 1
+			for _, val in pairs(value) do
+				assert(value[i] ~= nil, "Invalid array passed to registerConstant (must be sequential)")
+				assert(ValidArrayTypes[type(val)], "Invalid array passed to registerConstant (must only contain numbers, strings, vector or angles)")
+				i = i + 1
+			end
+		end
+
+		wire_expression2_constants[name] = {
+			value = value,
+			type = e2ty,
+			description = description,
+			extension = E2Lib.currentextension
+		}
+	else
+		error("Invalid value passed to registerConstant. Only numbers, strings, vectors, angles and arrays can be constant values.")
+	end
 end
 
 --- Example:

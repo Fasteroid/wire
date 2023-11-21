@@ -1160,31 +1160,32 @@ registerCallback( "postinit", function()
 		--------------------------------------------------------------------------------
 		__e2setcost(0)
 
-		local function iteri(tbl, i)
-			i = i + 1
-			local v = tbl.n[i]
-			if tbl.ntypes[i] == id then
-				return i, v
-			end
+		local next = next
+		local function itern(tbl, i)
+			local value
+			repeat
+				i, value = next(tbl.n, i)
+			until tbl.ntypes[i] == id or value == nil
+			return i, value
 		end
 
-		local next = next
-		local function iter(tbl, i)
-			local key, value = next(tbl.s, i)
-			if tbl.stypes[key] == id then
-				return key, value
-			end
+		local function iters(tbl, i)
+			local value
+			repeat
+				i, value = next(tbl.s, i)
+			until tbl.stypes[i] == id or value == nil
+			return i, value
 		end
 
 		registerOperator("iter", "s" .. id .. "=t", "", function(state, table)
 			return function()
-				return iter, table
+				return iters, table
 			end
 		end)
 
 		registerOperator("iter", "n" .. id .. "=t", "", function(state, table)
 			return function()
-				return iteri, table, 0
+				return itern, table
 			end
 		end)
 
