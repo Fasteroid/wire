@@ -1,6 +1,6 @@
 "VertexLitGeneric"
 {
-	"$basetexture" "venompapa/wirecd/wirecd7"
+	"$basetexture" "venompapa/wirecd/wirecd6"
 	"$surfaceprop" "plastic"
 	"$phong"     "1"
 	"$halflambert"	1
