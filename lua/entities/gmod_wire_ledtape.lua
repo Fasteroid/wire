@@ -83,11 +83,12 @@ if CLIENT then
 	local LocalToWorld_NoGarbage_Ents = {}
 
 	local function LocalToWorld_NoGarbage(ent, pos)
-		ent.LEDTapeVecs = ent.LEDTapeVecs or {}
 		local LEDTapeVecs = ent.LEDTapeVecs
+		if not LEDTapeVecs then LEDTapeVecs = {} ent.LEDTapeVecs = LEDTapeVecs end
 
-		if ent.LEDTapeLastPos == ent:GetPos() and ent.LEDTapeLastAng == ent:GetAngles() and LEDTapeVecs[pos] then
-			return LEDTapeVecs[pos]
+		local oldval = LEDTapeVecs[pos]
+		if oldval and ent.LEDTapeLastPos == ent:GetPos() and ent.LEDTapeLastAng == ent:GetAngles() then
+			return oldval
 		end
 
 		LEDTapeVecs[pos] = ent:LocalToWorld(pos)
@@ -98,70 +99,120 @@ if CLIENT then
 
 	local function LocalToWorld_NoGarbage_End()
 		for ent, _ in pairs(LocalToWorld_NoGarbage_Ents) do
-			if not IsValid(ent) then continue end
-			ent.LEDTapeLastPos = ent:GetPos()
-			ent.LEDTapeLastAng = ent:GetAngles()
+			if IsValid(ent) then
+				ent.LEDTapeLastPos = ent:GetPos()
+				ent.LEDTapeLastAng = ent:GetAngles()
+			end
 		end
 		LocalToWorld_NoGarbage_Ents = {}
 	end
 
-	hook.Add("PostDrawOpaqueRenderables","LEDTapeCleanup",LocalToWorld_NoGarbage_End)
+	hook.Add("PlayerPostThink", "LEDTapeCleanup", LocalToWorld_NoGarbage_End)
 
-	local function DrawBeams(width, scrollmul, mater, path, getColor, extravertex)
-
+	local function calcBeams(width, scrollmul, mater, path, getColor, extravertex)
 		if not IsValid(path[1][1]) then return end
 
 		local scroll = 0
-		local beam   = render.AddBeam
-
-		local beam2     = extravertex and beam or function() end -- branchless programming ftw
-		local vertexnum = extravertex and 3 or 2
 
 		scrollmul = scrollmul / width -- scale this
 
-		render.SetMaterial(mater)
-		render.StartBeam(#path * vertexnum)
+		local cache = {}
+		cache[-1] = mater
+		cache[-2] = width
 
-			local node1 = path[1]
+		local node1 = path[1]
 
-			local pt1 = LocalToWorld_NoGarbage(node1[1], node1[2])
+		local pt1 = LocalToWorld_NoGarbage(node1[1], node1[2])
 
-			beam(pt1, width, scroll, getColor(node1))
+		cache[1] = { pt1, scroll, getColor(node1) }
 
-			for i = 2, #path do
-				local node2 = path[i]
-				local nodeEnt = node2[1]
-				if not IsValid(nodeEnt) then continue end
+		local idx = 2
+		for i = 2, #path do
+			local node2 = path[i]
+			local nodeEnt = node2[1]
+			if IsValid(nodeEnt) then
 				local nodeOffset = node2[2]
 
 				local pt2 = LocalToWorld_NoGarbage(nodeEnt, nodeOffset)
 				local distance = pt2:Distance(pt1) * scrollmul * 0.5
 
-				beam( pt1, width, scroll, getColor(node1))
+				cache[idx] = { pt1, scroll, getColor(node1) }
+				idx = idx + 1
 				scroll = scroll + distance
-				beam( pt2, width, scroll, getColor(node2))
-				beam2( pt2, width, scroll, getColor(node2)) -- add another point if extravertex is set, prevents some sprites from looking yucky
+
+				cache[idx] = { pt2, scroll, getColor(node2) }
+				idx = idx + 1
+				if extravertex then
+					cache[idx] = { pt2, scroll, getColor(node2) }
+					idx = idx + 1
+				end
 
 				pt1 = pt2
 				node1 = node2
 			end
+		end
 
-			beam(pt1, width, scroll, getColor(node1))
+		cache[idx] = { pt1, scroll, getColor(node1) }
+
+		cache[0] = idx
+
+		return cache
+	end
+
+	local beam = render.AddBeam
+	local function drawBeams(cache)
+		if not cache then return end
+
+		local len = cache[0]
+		local width = cache[-2]
+
+		render.SetMaterial(cache[-1])
+		render.StartBeam(len)
+
+		for _, node in ipairs(cache) do
+			beam(node[1], width, node[2], node[3])
+		end
 
 		render.EndBeam()
-		return pt1
+		return cache[#cache][1]
 	end
 
-	function Wire_LEDTape.DrawShaded(width, scrollmul, mater, path)
-		return DrawBeams(width, scrollmul, mater, path, getLitNodeColor)
+	-- Yeah sorry I gave up on these
+
+	local function drawShaded(width, scrollmul, mater, path)
+		return calcBeams(width, scrollmul, mater, path, getLitNodeColor)
+	end
+	Wire_LEDTape.DrawShaded = drawShaded
+
+	local function drawFullbright(width, scrollmul, color, mater, path, extravert)
+		return calcBeams(width, scrollmul, mater, path, function() return color end, extravert)
+	end
+	Wire_LEDTape.DrawFullbright = drawFullbright
+
+	local function recalcBeams(self)
+		local color = self.Color
+		local colorfunc = function() return color end
+		if self.SpriteMaterial then
+			if self.Backlit then
+				self.LEDCache = calcBeams(self.Width, self.ScrollMul / 3, self.BaseMaterial, self.Path, colorfunc, false)
+			else
+				self.LEDCache = calcBeams(self.Width, self.ScrollMul / 3, self.BaseMaterial, self.Path, getLitNodeColor, false)
+			end
+			self.LEDSpriteCache = calcBeams(self.Width * 3, self.ScrollMul, self.SpriteMaterial, self.Path, colorfunc, false)
+		else
+			self.LEDCache = calcBeams(self.Width, self.ScrollMul, self.BaseMaterial, self.Path, colorfunc, false)
+		end
 	end
 
-	function Wire_LEDTape.DrawFullbright(width, scrollmul, color, mater, path, extravert)
-		return DrawBeams(width, scrollmul, mater, path, function(node) return color end, extravert)
+	local function draw_spr(self)
+		drawBeams(self.LEDCache)
+		drawBeams(self.LEDSpriteCache)
+	end
+	local function draw_nospr(self)
+		drawBeams(self.LEDCache)
 	end
 
 	function ENT:Initialize()
-
 		self:SharedInit()
 		self.ScrollMul = DEFAULT_SCALE
 
@@ -170,71 +221,70 @@ if CLIENT then
 			net.WriteBool(true) -- request full update
 		net.SendToServer()
 
-		if CLIENT then
-			local DrawShaded = Wire_LEDTape.DrawShaded
-			local DrawFullbright = Wire_LEDTape.DrawFullbright
-			hook.Add("PostDrawOpaqueRenderables", self, function()
-
-				if #self.Path < 2 then return end
-
-				if self.SpriteMaterial then
-
-					if self.Backlit then
-						DrawFullbright(self.Width, self.ScrollMul / 3, self.Color, self.BaseMaterial, self.Path, false)
-					else
-						DrawShaded(self.Width, self.ScrollMul / 3, self.BaseMaterial, self.Path)
-					end
-
-					DrawFullbright(self.Width * 3, self.ScrollMul, self.Color, self.SpriteMaterial, self.Path, not self.Connect)
-
-				else
-					DrawFullbright(self.Width, self.ScrollMul, self.Color, self.BaseMaterial, self.Path)
-				end
-
-			end)
-		end
-
 		self:SetOverlayText("LED Tape Controller")
-
 	end
 
 	function ENT:Think()
 		self.Color.r = self:GetNW2Int("LedTape_R")
 		self.Color.g = self:GetNW2Int("LedTape_G")
 		self.Color.b = self:GetNW2Int("LedTape_B")
+
+		-- Could maybe be opt better
+		if self.Path[1] then recalcBeams(self) end
 	end
 
 	net.Receive("LEDTapeData", function()
-
 		local controller = net.ReadEntity()
-		if not IsValid(controller) then return end
+		if not controller:IsValid() or controller:GetClass() ~= "gmod_wire_ledtape" then return end
 
 		local full = net.ReadBool()
 
-		controller.Width = net.ReadFloat()
+		local width = net.ReadFloat()
+		controller.Width = width
 		local mater = net.ReadString()
 
-		controller.BaseMaterial = Material( mater )
+		local basemat = Material(mater)
+		controller.BaseMaterial = basemat
 
 		local metadata = Wire_LEDTape.materialData[mater]
 
-		if metadata then
-			controller.SpriteMaterial = metadata.sprite and Material( metadata.sprite )
-			controller.ScrollMul = metadata.scale or DEFAULT_SCALE
-			controller.Connect   = metadata.connect or false
-			controller.Backlit   = metadata.backlit or false
+		local sprite = metadata.sprite and Material(metadata.sprite)
+		controller.SpriteMaterial = sprite
+		local scrollmul = metadata.scale or DEFAULT_SCALE
+		controller.ScrollMul = scrollmul
+		local connect = metadata.connect or false
+		controller.Connect = connect
+		local backlit = metadata.backlit or false
+		controller.Backlit = backlit
+
+		if full then
+			local pathLength = net.ReadUInt(Wire_LEDTape.NumBits) + 1
+			for _ = 1, pathLength do
+				table.insert(controller.Path,{net.ReadEntity(), net.ReadVector()})
+			end
 		end
 
-		if not full then return end
+		recalcBeams(controller)
 
-		local pathLength = net.ReadUInt(Wire_LEDTape.NumBits) + 1
-		for i = 1, pathLength do
-			table.insert(controller.Path,{net.ReadEntity(), net.ReadVector()})
+		if #controller.Path > 1 then
+			local drawfunc
+
+			if sprite then
+				drawfunc = draw_spr
+			else
+				drawfunc = draw_nospr
+			end
+
+			hook.Add("PostDrawOpaqueRenderables", controller, function()
+				drawfunc(controller)
+			end)
+		else
+			hook.Remove("PostDrawOqueRenderables", controller)
 		end
 
-		controller:SetOverlayText("LED Tape Controller\n(" .. (pathLength-1) .. " Segments)")
+		controller:SetOverlayText("LED Tape Controller\n(" .. (#controller.Path - 1) .. " Segments)")
 
-	end )
+	end)
 
 end
 
