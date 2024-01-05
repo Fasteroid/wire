@@ -1271,8 +1271,9 @@ function WireLib.CheckRegex(data, pattern)
 end
 
 local material_blacklist = {
-	["engine/writez"] = true,
 	["pp/copy"] = true,
+	["engine/writez"] = true,
+	["debug/debugluxels"] = true, -- Crashes linux client
 	["effects/ar2_altfire1"] = true
 }
 function WireLib.IsValidMaterial(material)

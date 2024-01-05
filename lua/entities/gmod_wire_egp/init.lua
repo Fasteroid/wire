@@ -2,6 +2,7 @@ AddCSLuaFile("cl_init.lua")
 AddCSLuaFile("shared.lua")
 include('shared.lua')
 
+ENT.IsEGP = true
 ENT.WireDebugName = "E2 Graphics Processor"
 
 function ENT:Initialize()
@@ -13,7 +14,9 @@ function ENT:Initialize()
 
 	self.RenderTable = {}
 
-	WireLib.CreateOutputs( self, { "User (Outputs the player who used the screen for a single tick) [ENTITY]", "wirelink [WIRELINK]" } )
+	WireLib.CreateOutputs(self, { "User (Outputs the player who used the screen for a single tick) [ENTITY]", "wirelink [WIRELINK]" })
+
+	WireLib.TriggerOutput(self, "wirelink", self)
 
 	self.xScale = { 0, 512 }
 	self.yScale = { 0, 512 }
