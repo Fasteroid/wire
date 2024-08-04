@@ -972,20 +972,20 @@ local code2 = [[
     #[
         Welcome to E2 Beyond Infinity!
         Max OPS here is 200,000.  CPU is a better measure of E2 perf impact.
-	
-		Documentation, instructions and examples are available at:
-		https://github.com/wiremod/wire/wiki/Expression-2
-		^ There you can read about: ^
 
-		- What is @strict and other directives (https://github.com/wiremod/wire/wiki/Expression-2-Directives)
-		- What are events (https://github.com/wiremod/wire/wiki/Expression-2-Events)
-		- What are lambdas (https://github.com/wiremod/wire/wiki/E2-Guide:-Lambdas)
+        Documentation, instructions and examples are available at:
+        https://github.com/wiremod/wire/wiki/Expression-2
+        ^ There you can read about: ^
 
-		Here's a few more useful links if you need help:
-		Official Wiremod Discord   - https://discord.gg/H8UKY3Y
-		Official Wiremod Subreddit - https://www.reddit.com/r/wiremod
+        - What is @strict and other directives (https://github.com/wiremod/wire/wiki/Expression-2-Directives)
+        - What are events (https://github.com/wiremod/wire/wiki/Expression-2-Events)
+        - What are lambdas (https://github.com/wiremod/wire/wiki/E2-Guide:-Lambdas)
 
-		Ping Fasteroid with any issues here since E2BI runs a fork of wire and it's probably his fault if something is broken.
+        Here's a few more useful links if you need help:
+        Official Wiremod Discord   - https://discord.gg/H8UKY3Y
+        Official Wiremod Subreddit - https://www.reddit.com/r/wiremod
+
+        Ping Fasteroid with any issues here since E2BI runs a fork of wire and it's probably his fault if something is broken.
         
         This message will self destruct on key press.
     ]#
