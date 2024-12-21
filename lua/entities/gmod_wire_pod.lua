@@ -552,7 +552,9 @@ function ENT:Think()
 			if IsValid(button) and (inAttack and not mouseDown) and not button:IsVehicle() and button.Use then
 				-- Generic support (Buttons, Dynamic Buttons, Levers, EGP screens, etc)
 				selfTbl.MouseDown = true
-				button:Use(ply, self, USE_ON, 0)
+				if hook.Run("PlayerUse", ply, button) ~= false then
+					button:Use(ply, self, USE_ON, 0)
+				end
 			elseif not inAttack and mouseDown then
 				selfTbl.MouseDown = false
 			end
@@ -636,7 +638,7 @@ end
 function Wire_Pod_EnterVehicle(ply, vehicle)
 	for _, v in ipairs(pods) do
 		local pod = v:GetPod()
-		if pod and pod == vehicle then
+		if pod == vehicle and ply:GetVehicle() == pod then
 			v:PlayerEntered(ply)
 		end
 	end

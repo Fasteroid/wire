@@ -450,6 +450,16 @@ e2function number entity:isNPC()
 	if this:IsNPC() then return 1 else return 0 end
 end
 
+e2function number entity:isNextBot()
+	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
+	if this:IsNextBot() then return 1 else return 0 end
+end
+
+e2function number entity:isRagdoll()
+	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
+	if this:IsRagdoll() then return 1 else return 0 end
+end
+
 e2function number entity:isVehicle()
 	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
 	if this:IsVehicle() then return 1 else return 0 end
@@ -579,6 +589,24 @@ e2function number entity:isFrozen()
 	if not validPhysics(this) then return self:throw("Invalid entity!", 0) end
 	local phys = this:GetPhysicsObject()
 	if phys:IsMoveable() then return 0 else return 1 end
+end
+
+e2function number entity:isAsleep()
+	if not validPhysics(this) then return self:throw("Invalid entity!", 0) end
+	local phys = this:GetPhysicsObject()
+	if phys:IsAsleep() then return 1 else return 0 end
+end
+
+e2function number entity:isGravityEnabled()
+	if not validPhysics(this) then return self:throw("Invalid entity!", 0) end
+	local phys = this:GetPhysicsObject()
+	if phys:IsGravityEnabled() then return 1 else return 0 end
+end
+
+e2function number entity:isPenetrating()
+	if not validPhysics(this) then return self:throw("Invalid entity!", 0) end
+	local phys = this:GetPhysicsObject()
+	if phys:IsPenetrating() then return 1 else return 0 end
 end
 
 --[[******************************************************************************]]
@@ -1149,10 +1177,45 @@ end
 __e2setcost(50)
 
 e2function array entity:getFlexes()
-	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
+	if not IsValid(this) then return self:throw("Invalid entity!", {}) end
 	local ret = {}
 	for i = 0, this:GetFlexNum() - 1 do
 		ret[i] = this:GetFlexName(i)
+	end
+	self.prf = self.prf + (#ret + 1) * 5
+	return ret
+end
+
+--[[******************************************************************************]]
+-- Model bones
+
+__e2setcost(5)
+
+e2function number entity:getModelBoneCount()
+	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
+
+	return this:GetBoneCount()
+end
+
+e2function number entity:getModelBoneIndex(string bone_name)
+	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
+
+	return this:LookupBone(bone_name) or -1
+end
+
+e2function number entity:getModelBoneName(bone_index)
+	if not IsValid(this) then return self:throw("Invalid entity!", "") end
+
+	return this:GetBoneName(bone_index) or ""
+end
+
+__e2setcost(50)
+
+e2function array entity:getModelBones()
+	if not IsValid(this) then return self:throw("Invalid entity!", {}) end
+	local ret = {}
+	for i = 0, this:GetBoneCount() - 1 do
+		ret[i] = this:GetBoneName(i)
 	end
 	self.prf = self.prf + (#ret + 1) * 5
 	return ret

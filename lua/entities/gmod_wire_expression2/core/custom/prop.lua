@@ -832,6 +832,18 @@ e2function void entity:propShadow(number shadowEnable)
 	this:DrawShadow( shadowEnable ~= 0 )
 end
 
+e2function void entity:propSleep(number sleep)
+	if not ValidAction(self, this, "sleep") then return end
+	local phys = this:GetPhysicsObject()
+	if phys:IsValid() then
+		if sleep ~= 0 then
+			phys:Sleep()
+		else
+			phys:Wake()
+		end
+	end
+end
+
 e2function void entity:propGravity(number gravity)
 	if not ValidAction(self, this, "gravity") then return end
 	local physCount = this:GetPhysicsObjectCount()
@@ -1145,8 +1157,16 @@ e2function void entity:ragdollFreeze(isFrozen)
 
 end
 
-__e2setcost(150)
+__e2setcost(5)
+e2function angle entity:ragdollGetAng()
+	if not ValidAction(self, this) then return end
 
+	local phys = this:GetPhysicsObject()
+
+	return phys:IsValid() and phys:GetAngles() or self:throw("Tried to use entity without physics", Angle())
+end
+
+__e2setcost(150)
 e2function void entity:ragdollSetPos(vector pos)
 	if not ValidAction(self, this, "pos") then return end
 
@@ -1160,8 +1180,9 @@ end
 e2function void entity:ragdollSetAng(angle rot)
 	if not ValidAction(self, this, "rot") then return end
 
+	local o = this:GetPhysicsObject():GetAngles()
 	for _, bone in pairs(GetBones(this)) do
-		setAng(bone, bone:AlignAngles(this:GetForward():Angle(), rot))
+		setAng(bone, bone:AlignAngles(o, rot))
 	end
 
 	this:PhysWake()
@@ -1324,19 +1345,19 @@ end
 __e2setcost(10)
 
 e2function void entity:setEyeTarget(vector pos)
-	if not ValidAction(self, this, "eyetarget") then return end
+	if not ValidAction(self, this) then return end
 	this:SetEyeTarget(pos)
 end
 
 e2function void entity:setFlexWeight(number flex, number weight)
-	if not ValidAction(self, this, "flexweight" .. flex) then return end
+	if not ValidAction(self, this) then return end
 	this:SetFlexWeight(flex, weight)
 end
 
 __e2setcost(30)
 
 e2function void entity:setEyeTargetLocal(vector pos)
-	if not ValidAction(self, this, "eyetarget") then return end
+	if not ValidAction(self, this) then return end
 	if not this:IsRagdoll() then
 		local attachment = this:GetAttachment(this:LookupAttachment("eyes"))
 		if attachment then
@@ -1347,7 +1368,7 @@ e2function void entity:setEyeTargetLocal(vector pos)
 end
 
 e2function void entity:setEyeTargetWorld(vector pos)
-	if not ValidAction(self, this, "eyetarget") then return end
+	if not ValidAction(self, this) then return end
 	if this:IsRagdoll() then
 		local attachment = this:GetAttachment(this:LookupAttachment("eyes"))
 		if attachment then
@@ -1362,13 +1383,13 @@ __e2setcost(20)
 e2function void entity:setFlexWeight(string flex, number weight)
 	flex = this:GetFlexIDByName(flex)
 	if flex then
-		if not ValidAction(self, this, "flexweight" .. flex) then return end
+		if not ValidAction(self, this) then return end
 		this:SetFlexWeight(flex, weight)
 	end
 end
 
 e2function void entity:setFlexScale(number scale)
-	if not ValidAction(self, this, "flexscale") then return end
+	if not ValidAction(self, this) then return end
 	this:SetFlexScale(scale)
 end
 
