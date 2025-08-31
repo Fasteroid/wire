@@ -22,21 +22,17 @@ local typeIDToString = WireLib.typeIDToString
 local castE2ValueToLuaValue = E2Lib.castE2ValueToLuaValue
 
 local E2totalspawnedprops = 0
-local E2tempSpawnedProps = 0
-local TimeStamp = 0
 local playerMeta = FindMetaTable("Player")
 
-local function TempReset()
- if (CurTime()>= TimeStamp) then
-	E2tempSpawnedProps = 0
-	TimeStamp = CurTime()+1
- end
-end
-hook.Add("Think","TempReset",TempReset)
+function PropCore.WithinPropcoreLimits(ply)
+	if CurTime() >= (ply.E2tempSpawnedPropsTime or 0) then
+		ply.E2tempSpawnedProps = 0
+		ply.E2tempSpawnedPropsTime = CurTime() + 1
+	end
 
-function PropCore.WithinPropcoreLimits()
-	return (sbox_E2_maxProps:GetInt() <= 0 or E2totalspawnedprops<sbox_E2_maxProps:GetInt()) and E2tempSpawnedProps < sbox_E2_maxPropsPerSecond:GetInt()
+	return (sbox_E2_maxProps:GetInt() <= 0 or E2totalspawnedprops < sbox_E2_maxProps:GetInt()) and ply.E2tempSpawnedProps < sbox_E2_maxPropsPerSecond:GetInt()
 end
+
 local WithinPropcoreLimits = PropCore.WithinPropcoreLimits
 
 function PropCore.ValidSpawn(ply, model, vehicleType)
@@ -44,9 +40,7 @@ function PropCore.ValidSpawn(ply, model, vehicleType)
 	local limithit = playerMeta.LimitHit
 	playerMeta.LimitHit = function() end
 
-	if not PropCore.WithinPropcoreLimits() then
-		ret = false
-	elseif not (util.IsValidProp( model ) and WireLib.CanModel(ply, model)) then
+	if not (util.IsValidProp( model ) and WireLib.CanModel(ply, model)) then
 		ret = false
 	elseif vehicleType then
 		ret = gamemode.Call( "PlayerSpawnVehicle", ply, model, vehicleType, list.Get( "Vehicles" )[vehicleType] ) ~= false
@@ -105,7 +99,7 @@ local function MakePropNoEffect(...)
 end
 
 function PropCore.CreateProp(self, model, pos, angles, freeze, vehicleType)
-	if not WithinPropcoreLimits() then return self:throw("Prop limit reached! (cooldown or max)", NULL) end
+	if not WithinPropcoreLimits(self.player) then return self:throw("Prop limit reached! (cooldown or max)", NULL) end
 	if not ValidSpawn(self.player, model, vehicleType) then return NULL end
 
 	pos = WireLib.clampPos( pos )
@@ -170,7 +164,7 @@ function PropCore.CreateProp(self, model, pos, angles, freeze, vehicleType)
 
 	self.data.spawnedProps[ prop ] = self.data.propSpawnUndo
 	E2totalspawnedprops = E2totalspawnedprops + 1
-	E2tempSpawnedProps = E2tempSpawnedProps + 1
+	self.player.E2tempSpawnedProps = self.player.E2tempSpawnedProps + 1
 
 	return prop
 end
@@ -208,7 +202,7 @@ function PropCore.CreateSent(self, class, pos, angles, freeze, data)
 	if not wire_expression2_propcore_sents_enabled:GetBool() then return self:throw("Sent spawning is disabled by server! (wire_expression2_propcore_sents_enabled)", NULL) end
 	if blacklistedSents[class] then return self:throw("Sent class '" .. class .. "' is blacklisted!", NULL) end
 	if hook.Run( "Expression2_CanSpawnSent", class, self ) == false then return self:throw("A hook prevented this sent to be spawned!", nil) end
-	if not WithinPropcoreLimits() then return self:throw("Prop limit reached! (cooldown or max)", NULL) end
+	if not WithinPropcoreLimits(self.player) then return self:throw("Prop limit reached! (cooldown or max)", NULL) end
 	-- Same logic as in PropCore.ValidSpawn
 	-- Decided not to put it in a function, as it's only used twice, and abstraction may lead to problems for future devs.
 	local limithit = playerMeta.LimitHit
@@ -322,24 +316,27 @@ function PropCore.CreateSent(self, class, pos, angles, freeze, data)
 	elseif sent then -- Spawning an entity from entity tab.
 		if sent.AdminOnly and not self.player:IsAdmin() then return self:throw("You do not have permission to spawn '" .. class .. "' (admin-only)!", NULL) end
 
-		local mockTrace = {
-			FractionLeftSolid = 0,
-			HitNonWorld       = true,
-			Fraction          = 0,
-			Entity            = NULL,
-			HitPos            = Vector(pos),
-			HitNormal         = Vector(0, 0, 0),
-			HitBox            = 0,
-			Normal            = Vector(1, 0, 0),
-			Hit               = true,
-			HitGroup          = 0,
-			MatType           = 0,
-			StartPos          = Vector(0, 0, 0),
-			PhysicsBone       = 0,
-			WorldToLocal      = Vector(0, 0, 0),
-		}
-		if sent.t and sent.t.SpawnFunction then
-			entity = sent.t.SpawnFunction( sent.t, ply, mockTrace, class )
+		local stored_sent = scripted_ents.GetStored(class)
+
+		if stored_sent and stored_sent.t.SpawnFunction then
+			local mockTrace = {
+				FractionLeftSolid = 0,
+				HitNonWorld       = true,
+				Fraction          = 0,
+				Entity            = NULL,
+				HitPos            = Vector(pos),
+				HitNormal         = Vector(0, 0, 0),
+				HitBox            = 0,
+				Normal            = Vector(1, 0, 0),
+				Hit               = true,
+				HitGroup          = 0,
+				MatType           = 0,
+				StartPos          = Vector(0, 0, 0),
+				PhysicsBone       = 0,
+				WorldToLocal      = Vector(0, 0, 0),
+			}
+
+			entity = stored_sent.t.SpawnFunction(stored_sent.t, self.player, mockTrace, class)
 		else
 			entity = ents.Create( class )
 			if IsValid(entity) then
@@ -350,7 +347,9 @@ function PropCore.CreateSent(self, class, pos, angles, freeze, data)
 			end
 		end
 
-		gamemode.Call("PlayerSpawnedSENT", self.player, entity)
+		if IsValid(entity) then
+			gamemode.Call("PlayerSpawnedSENT", self.player, entity)
+		end
 	end
 
 	if not IsValid( entity ) then return NULL end
@@ -376,13 +375,16 @@ function PropCore.CreateSent(self, class, pos, angles, freeze, data)
 	entity:CallOnRemove( "wire_expression2_propcore_remove",
 		function( entity )
 			self.data.spawnedProps[ entity ] = nil
-			E2totalspawnedprops = E2totalspawnedprops - 1
+
+			if IsValid(self.player) then
+				self.player.E2totalspawnedprops = E2totalspawnedprops - 1
+			end
 		end
 	)
 
 	self.data.spawnedProps[ entity ] = self.data.propSpawnUndo
 	E2totalspawnedprops = E2totalspawnedprops + 1
-	E2tempSpawnedProps = E2tempSpawnedProps + 1
+	self.player.E2tempSpawnedProps = self.player.E2tempSpawnedProps + 1
 
 	return entity
 end
@@ -648,12 +650,12 @@ end
 __e2setcost(5)
 [nodiscard]
 e2function number sentCanCreate()
-	return WithinPropcoreLimits() and 1 or 0
+	return WithinPropcoreLimits(self.player) and 1 or 0
 end
 
 [nodiscard]
 e2function number sentCanCreate(string class)
-	if not WithinPropcoreLimits() then return 0 end
+	if not WithinPropcoreLimits(self.player) then return 0 end
 
 	local registered_sent, sent = list.GetForEdit("wire_spawnable_ents_registry")[class], list.Get("SpawnableEntities")[class]
 	if registered_sent then return 1
@@ -1396,7 +1398,7 @@ e2function void propSpawnUndo(number on)
 end
 
 e2function number propCanCreate()
-	if WithinPropcoreLimits() then return 1 end
+	if WithinPropcoreLimits(self.player) then return 1 end
 	return 0
 end
 

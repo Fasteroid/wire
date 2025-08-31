@@ -22,6 +22,7 @@ end
 
 function ENT:SetPlayer(ply)
 	self:SetPlayerEnt(ply)
+	self:SetCreator(ply)
 	self.steamid = ply:SteamID()
 end
 
@@ -377,7 +378,7 @@ if CLIENT then
 		end,
 		function(cmd)
 			local help = {}
-			for _, ply in ipairs(player.GetAll()) do
+			for _, ply in player.Iterator() do
 				table.insert(help, cmd.." \""..ply:SteamID().."\" // "..ply:Name())
 			end
 			return help
