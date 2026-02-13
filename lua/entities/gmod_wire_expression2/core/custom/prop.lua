@@ -21,6 +21,8 @@ local setAng = WireLib.setAng
 local typeIDToString = WireLib.typeIDToString
 local castE2ValueToLuaValue = E2Lib.castE2ValueToLuaValue
 
+local newE2Table = WireLib.E2Table.New
+
 local E2totalspawnedprops = 0
 local playerMeta = FindMetaTable("Player")
 
@@ -396,6 +398,71 @@ end
 
 local CreateSent = PropCore.CreateSent
 
+local wire_customprops_hullsize_max = GetConVar("wire_customprops_hullsize_max")
+local wire_customprops_minvertexdistance = GetConVar("wire_customprops_minvertexdistance")
+local wire_customprops_vertices_max = GetConVar("wire_customprops_vertices_max")
+local wire_customprops_convexes_max = GetConVar("wire_customprops_convexes_max")
+local wire_customprops_max = GetConVar("wire_customprops_max")
+
+local function isSequentialArray(t)
+	if TypeID(t) ~= TYPE_TABLE then return false end
+
+	-- Check all keys are integers 1..n and contiguous
+	local count = 0
+	for k in pairs(t) do
+		if type(k) ~= "number" or k < 1 or k % 1 ~= 0 then
+			return false
+		end
+		count = count + 1
+	end
+
+	-- Verify there are no gaps: #t must equal number of keys
+	return count == #t
+end
+
+local function createCustomProp(self, convexes, pos, ang, freeze)
+	if not WireLib.CustomProp.CanSpawn(self.player) then
+		return self:throw("You have reached the maximum number of custom props you can spawn! (" .. wire_customprops_max:GetInt() .. ")", NULL)
+	end
+
+	if not ValidAction(self, nil, "spawn") then return NULL end
+
+	convexes = castE2ValueToLuaValue(TYPE_TABLE, convexes)
+
+	if not isSequentialArray(convexes) then return self:throw("Expected array of convexes (array of arrays of vectors)", NULL) end
+
+	-- Add dynamic ops cost, and validate the mesh data structure
+	for k, v in ipairs(convexes) do
+		if TypeID(v) ~= TYPE_TABLE then return self:throw("Expected array of convexes (array of arrays of vectors)", NULL) end
+		for k2, v2 in ipairs(v) do
+			if TypeID(v2) ~= TYPE_VECTOR then return self:throw("Expected array of vertices (array of vectors)", NULL) end
+			self.prf = self.prf + 10 -- Subject to change
+		end
+	end
+
+	local success, entity = pcall(WireLib.CustomProp.Create, self.player, pos, ang, convexes)
+
+	if not success then
+		-- Remove file/line info from error string
+		local msg = tostring(entity):gsub("^[^:]+:%d+:%s*", "")
+		self:throw("Failed to spawn custom prop! " .. msg, NULL)
+	end
+
+	self.player:AddCleanup("gmod_wire_customprop", entity)
+
+	if self.data.propSpawnUndo then
+		undo.Create("gmod_wire_customprop")
+			undo.AddEntity(entity)
+			undo.SetPlayer(self.player)
+		undo.Finish("E2 Custom Prop")
+	end
+
+	self.player.customPropLastSpawn = CurTime()
+	self.data.spawnedProps[entity] = self.data.propSpawnUndo
+
+	return entity
+end
+
 --------------------------------------------------------------------------------
 __e2setcost(40)
 e2function entity propSpawn(string model, number frozen)
@@ -506,25 +573,21 @@ end
 __e2setcost(30)
 [nodiscard]
 e2function table sentGetData(string class)
-	local res = E2Lib.newE2Table()
+	local res = newE2Table()
 
 	local sent = list.Get("wire_spawnable_ents_registry")[class]
 	if not sent then self:throw("No class '"..class.."' found in sent registry", res) end
 
-	local size = 0
 	for key, tbl in pairs( sent ) do
 		if key=="_preFactory" or key=="_postFactory" then continue end
 
-		res.s[key] = E2Lib.newE2Table()
-		res.s[key].size = 2
-		res.s[key].s["type"] = typeIDToString(tbl[1])
-		res.s[key].s["default_value"] = sentDataFormatDefaultVal(tbl[2])
-		res.s[key].s["description"] = tbl[3] or "<no description>"
-		res.stypes[key] = "t"
-
-		size = size + 1
+		local subt = newE2Table({
+			type = typeIDToString(tbl[1]),
+			default_value = sentDataFormatDefaultVal(tbl[2]),
+			description = tbl[3] or "<no description>"
+		})
+		res:Set(key, subt)
 	end
-	res.size = size
 
 	return res
 end
@@ -537,11 +600,11 @@ e2function table sentGetData(string class, string key)
 	if not sent[key] then self:throw("Class '"..class.."' does not have any value at key '"..key.."'", "") end
 	if key=="_preFactory" or key=="_postFactory" then self:throw("Prohibited key '"..key.."'", "") end
 
-	local res = E2Lib.newE2Table()
-	res.s["type"] = typeIDToString(sent[key][1])
-	res.s["default_value"] = sentDataFormatDefaultVal(sent[key][2])
-	res.s["description"] = sent[key][3] or "<no description>"
-	res.size = 3
+	local res = newE2Table({
+		type = typeIDToString(tbl[1]),
+		default_value = sentDataFormatDefaultVal(tbl[2]),
+		description = tbl[3] or "<no description>"
+	})
 
 	return res
 end
@@ -551,19 +614,16 @@ end
 __e2setcost(25)
 [nodiscard]
 e2function table sentGetDataTypes(string class)
-	local res = E2Lib.newE2Table()
+	local res = newE2Table()
 
 	local sent = list.Get("wire_spawnable_ents_registry")[class]
 	if not sent then self:throw("No class '"..class.."' found in sent registry", res) end
 
-	local size = 0
 	for key, tbl in pairs( sent ) do
 		if key=="_preFactory" or key=="_postFactory" then continue end
 
-		res.s[key] = typeIDToString(tbl[1])
-		size = size + 1
+		res:Set(key, typeIDToString(tbl[1]))
 	end
-	res.size = size
 
 	return res
 end
@@ -584,19 +644,16 @@ end
 __e2setcost(25)
 [nodiscard]
 e2function table sentGetDataDefaultValues(string class)
-	local res = E2Lib.newE2Table()
+	local res = newE2Table()
 
 	local sent = list.Get("wire_spawnable_ents_registry")[class]
 	if not sent then self:throw("No class '"..class.."' found in sent registry", res) end
 
-	local size = 0
 	for key, tbl in pairs( sent ) do
 		if key=="_preFactory" or key=="_postFactory" then continue end
 
-		res.s[key] = sentDataFormatDefaultVal(tbl[2])
-		size = size + 1
+		res:Set(key, sentDataFormatDefaultVal(tbl[2]))
 	end
-	res.size = size
 
 	return res
 end
@@ -617,19 +674,16 @@ end
 __e2setcost(25)
 [nodiscard]
 e2function table sentGetDataDescriptions(string class)
-	local res = E2Lib.newE2Table()
+	local res = newE2Table()
 
 	local sent = list.Get("wire_spawnable_ents_registry")[class]
 	if not sent then self:throw("No class '"..class.."' found in sent registry", res) end
 
-	local size = 0
 	for key, tbl in pairs( sent ) do
 		if key=="_preFactory" or key=="_postFactory" then continue end
 
-		res.s[key] = tbl[3] or "<no description>"
-		size = size + 1
+		res:Set(key, tbl[3] or "<no description>")
 	end
-	res.size = size
 
 	return res
 end
@@ -706,6 +760,78 @@ end
 
 --------------------------------------------------------------------------------
 
+__e2setcost(900)
+e2function entity customPropSpawn(table convexes)
+	return createCustomProp(self, convexes, self.entity:GetPos() + self.entity:GetUp() * 25, self.entity:GetAngles(), 0)
+end
+
+e2function entity customPropSpawn(table convexes, vector pos)
+	return createCustomProp(self, convexes, Vector(pos[1], pos[2], pos[3]), self.entity:GetAngles(), 0)
+end
+
+e2function entity customPropSpawn(table convexes, angle ang)
+	return createCustomProp(self, convexes, self.entity:GetPos() + self.entity:GetUp() * 25, Angle(ang[1], ang[2], ang[3]), 0)
+end
+
+e2function entity customPropSpawn(table convexes, vector pos, angle ang)
+	return createCustomProp(self, convexes, Vector(pos[1], pos[2], pos[3]), Angle(ang[1], ang[2], ang[3]), 0)
+end
+
+e2function entity customPropSpawn(table convexes, vector pos, angle ang, number frozen)
+	return createCustomProp(self, convexes, Vector(pos[1], pos[2], pos[3]), Angle(ang[1], ang[2], ang[3]), frozen)
+end
+
+--------------------------------------------------------------------------------
+
+__e2setcost(1)
+[nodiscard]
+e2function number customPropCanCreate()
+	return self.player.customPropsSpawned < wire_customprops_max:GetInt() and 1 or 0
+end
+
+[nodiscard]
+e2function number customPropIsEnabled()
+	return wire_expression2_propcore_customprops_enabled:GetBool() and 1 or 0
+end
+
+[nodiscard]
+e2function number customPropsLeft()
+	return math.max(0, math.floor(wire_customprops_max:GetInt() - (self.player.customPropsSpawned or 0)))
+end
+
+[nodiscard]
+e2function number customPropsMax()
+	return wire_customprops_max:GetInt()
+end
+
+[nodiscard]
+e2function number customPropConvexesMax()
+	return wire_customprops_convexes_max:GetInt()
+end
+
+[nodiscard]
+e2function number customPropVerticesMax()
+	return wire_customprops_vertices_max:GetInt()
+end
+
+[nodiscard]
+e2function number customPropMinVertexDistance()
+	return wire_customprops_minvertexdistance:GetFloat()
+end
+
+[nodiscard]
+e2function number customPropHullSizeMax()
+	return wire_customprops_hullsize_max:GetFloat()
+end
+
+__e2setcost(1)
+[nodiscard]
+e2function number customPropsSpawned()
+	return self.player.customPropsSpawned or 0
+end
+
+--------------------------------------------------------------------------------
+
 __e2setcost(10)
 e2function void entity:propDelete()
 	if not ValidAction(self, this, "delete") then return end
@@ -718,7 +844,7 @@ e2function void entity:propBreak()
 end
 
 hook.Add("EntityTakeDamage", "WireUnbreakable", function(ent, dmginfo)
-    if ent.wire_unbreakable then return true end
+	if ent.wire_unbreakable then return true end
 end)
 
 [nodiscard]
@@ -778,17 +904,12 @@ e2function void entity:use()
 	if not ValidAction(self, this, "use") then return end
 
 	local ply = self.player
-	if not IsValid(ply) then return end -- if the owner isn't connected to the server, do nothing
-	if ply:InVehicle() and this:IsVehicle() then return end -- don't use a vehicle if you're in one
+	if not IsValid(ply) then return end
 
-	if hook.Run( "PlayerUse", ply, this ) == false then return end
-	if hook.Run( "WireUse", ply, this, self.entity ) == false then return end
+	if hook.Run("PlayerUse", ply, this) == false then return end
+	if hook.Run("WireUse", ply, this, self.entity) == false then return end
 
-	if this.Use then
-		this:Use(ply,self.entity,USE_ON,0)
-	else
-		this:Fire("use","1",0)
-	end
+	this:Use(ply, self.entity)
 end
 
 __e2setcost(30)
@@ -848,9 +969,7 @@ end
 
 [nodiscard]
 e2function number entity:propCanSetDupeable()
-	local isOk, Val = pcall(ValidAction, self, this, "noDupe")
-	if not isOk then return 0 end
-
+	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
 	return canMarkDupeable(this, self.player) and 1 or 0
 end
 
@@ -949,7 +1068,7 @@ e2function void entity:propSetFriction(number friction)
 end
 
 e2function number entity:propGetFriction()
-	if not ValidAction(self, this, "friction") then return 0 end
+	if not IsValid(this) then return self:throw("Invalid entity!", 0) end
 	return this:GetFriction()
 end
 
@@ -977,10 +1096,9 @@ e2function void entity:propPhysicalMaterial(string physprop)
 end
 
 e2function string entity:propPhysicalMaterial()
-	if not ValidAction(self, this, "physprop") then return "" end
+	if not IsValid(this) then return self:throw("Invalid entity!", "") end
 	local phys = this:GetPhysicsObject()
-	if IsValid(phys) then return phys:GetMaterial() or "" end
-	return ""
+	return phys:IsValid() and phys:GetMaterial() or ""
 end
 
 e2function void entity:propSetVelocity(vector velocity)
@@ -1254,14 +1372,14 @@ e2function void entity:ragdollSetAng(angle rot)
 end
 
 e2function table entity:ragdollGetPose()
-	if not ValidAction(self, this) then return end
-	local pose = E2Lib.newE2Table()
+	if not IsValid(this) then return self:throw("Invalid entity!", newE2Table()) end
+	local pose = newE2Table()
 	local bones = GetBones(this)
 	local originPos, originAng = bones[0]:GetPos(), bones[0]:GetAngles()
 	local size = 0
 
 	for k, bone in pairs(bones) do
-		local value = E2Lib.newE2Table()
+		local value = newE2Table()
 		local pos, ang = WorldToLocal(bone:GetPos(), bone:GetAngles(), originPos, originAng)
 
 		value.n[1] = pos
@@ -1494,8 +1612,6 @@ local typefilter = {
 	vector = "v",
 	number = "n",
 }
-
-local newE2Table = E2Lib.newE2Table
 
 __e2setcost(20)
 

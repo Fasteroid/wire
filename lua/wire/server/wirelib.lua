@@ -95,6 +95,8 @@ function WireLib.TriggerInput(ent, name, value, ...)
 	end
 end
 
+local newE2Table = WireLib.E2Table.New
+
 --- Array of data types for Wiremod.
 ---@type table<string, { Zero: (fun(): any), Validator: (fun(val: any): boolean) }>
 WireLib.DT = {
@@ -154,7 +156,7 @@ WireLib.DT = {
 	},
 	TABLE = {
 		Zero = function()
-			return { n = {}, ntypes = {}, s = {}, stypes = {}, size = 0 }
+			return newE2Table()
 		end,
 		Validator = function(t)
 			return istable(t)
@@ -581,7 +583,7 @@ local function Wire_Link(dst, dstid, src, srcid, path)
 	WireLib.TriggerInput(dst, dstid, output.Value)
 end
 
-function WireLib.TriggerOutput(ent, oname, value, iter)
+function WireLib.TriggerOutput(ent, oname, value, iter, force)
 	if not entIsValid(ent) then return end
 	if not HasPorts(ent) then return end
 
@@ -597,7 +599,7 @@ function WireLib.TriggerOutput(ent, oname, value, iter)
 		value = ty.Zero()
 	end
 
-	if value ~= output.Value or output.Type == "ARRAY" or output.Type == "TABLE" or (output.Type == "ENTITY" and not rawequal(value, output.Value) --[[Covers the NULL==NULL case]]) then
+	if value ~= output.Value or output.Type == "ARRAY" or output.Type == "TABLE" or (output.Type == "ENTITY" and not rawequal(value, output.Value) --[[Covers the NULL==NULL case]]) or force then
 		local timeOfFrame = CurTime()
 		if timeOfFrame ~= output.TriggerTime then
 			-- Reset the TriggerLimit every frame
@@ -1068,14 +1070,11 @@ function WireLib.NumModelSkins(model)
 	return info and info.SkinCount
 end
 
---- @return whether the given player can spawn an object with the given model and skin
-function WireLib.CanModel(player, model, skin)
+--- @return Whether the given player can spawn an object with the given model and skin
+function WireLib.CanModel(ply, model, skin)
 	if not util.IsValidModel(model) then return false end
-	if skin ~= nil then
-		local count = WireLib.NumModelSkins(model)
-		if skin < 0 or (count and skin >= count) then return false end
-	end
-	if IsValid(player) and player:IsPlayer() and not hook.Run("PlayerSpawnObject", player, model, skin) then return false end
+	if IsValid(ply) and ply:IsPlayer() and not hook.Run("PlayerSpawnObject", ply, model, skin or 0) then return false end
+
 	return true
 end
 
