@@ -685,7 +685,7 @@ function Editor:InitComponents()
 	self.C.Helper:SetScreenLock(true)
 	local html = vgui.Create("DHTML" , self.C.Helper)
 	html:Dock(FILL)
-	html:SetHTML(file.Read("data_static/fpgahelp.txt", "GAME") or "")
+	html:OpenURL("https://wiremod.github.io/Miscellaneous/fpgahelp.html")
 	html:SetAllowLua(false)
 
 	self.C.Help = vgui.Create("Button", self.C.Menu)
@@ -857,6 +857,12 @@ function Editor:InitControlPanel(frame)
 		self:GetParent():SetWorldClicker(bVal)
 	end
 
+	local Minimap = vgui.Create("DCheckBoxLabel")
+	dlist:AddItem(Minimap)
+	Minimap:SetConVar("wire_fpga_editor_minimap")
+	Minimap:SetText("Show minimap")
+	Minimap:SizeToContents()
+	Minimap:SetTooltip("Enable or disable the minimap in the editor.")
 	--------------------------------------------- FPGA TAB
 	sheet = self:AddControlPanelTab("FPGA", "icon16/computer.png", "Options for FPGA.")
 
