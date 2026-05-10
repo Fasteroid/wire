@@ -331,7 +331,7 @@ end
 
 registerCallback("postexecute", function(self)
 	if timer.Exists("wire_hologram_postexecute_"..self.uid) then return end
-	timer.Create("wire_hologram_postexecute_"..self.uid,0.1,1,function()
+	timer.Create("wire_hologram_postexecute_"..self.uid,0.0,1,function()
 		if not IsValid(self.entity) then return end
 
 		flush_scale_queue()
