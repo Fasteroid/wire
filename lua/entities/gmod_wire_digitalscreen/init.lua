@@ -170,8 +170,8 @@ end
 ----------------------------------------------------
 -- Processing limiters and global bandwidth limiters
 local maxProcessingTime = engine.TickInterval() * 0.9
-local defaultMaxBandwidth = 10000 -- 10k per screen max limit - is arbitrary. needs to be smaller than the global limit.
-local defaultMaxGlobalBandwidth = 20000 -- 20k is a good global limit in my testing. higher than that seems to cause issues
+local defaultMaxBandwidth = 50000 -- 10k per screen max limit - is arbitrary. needs to be smaller than the global limit.
+local defaultMaxGlobalBandwidth = 200000 -- 200k is a good global limit in my testing. higher than that seems to cause issues
 local maxBandwidth = defaultMaxBandwidth
 local globalBandwidthLookup = {}
 local function calcGlobalBW()
