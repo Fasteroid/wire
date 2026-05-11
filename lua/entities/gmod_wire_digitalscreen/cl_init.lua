@@ -143,7 +143,7 @@ end
 
 function ENT:Think()
 	if self.buffer[1] ~= nil then
-		local maxtime = SysTime() + RealFrameTime() * 0.05 -- do more depending on client FPS. Higher fps = more work
+		local maxtime = SysTime() + RealFrameTime() * 0.08 -- do more depending on client FPS. Higher fps = more work
 
 		while SysTime() < maxtime and self.buffer[1] do
 			if not self.co or coroutine.status(self.co) == "dead" then
@@ -156,7 +156,7 @@ function ENT:Think()
 		end
 	end
 
-	self:NextThink(CurTime()+0.1)
+	self:NextThink(CurTime()+0.0)
 	return true
 end
 
@@ -320,7 +320,7 @@ function ENT:Draw()
 
 	if self.NeedRefresh then
 		self.NeedRefresh = false
-		local maxtime = SysTime() + RealFrameTime() * 0.01
+		local maxtime = SysTime() + RealFrameTime() * 0.5
 
 		self.GPU:RenderToGPU(function()
 			local idx = 0
