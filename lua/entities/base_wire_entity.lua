@@ -18,9 +18,9 @@ if CLIENT then
 		self.PlayerWasLookingAtMe = false
 	end
 
-	function ENT:Draw()
+	function ENT:Draw(flags)
 		local entsTbl = EntityMeta.GetTable( self )
-		entsTbl.DoNormalDraw( self )
+		entsTbl.DoNormalDraw( self, nil, nil, flags )
 		Wire_Render(self)
 		if entsTbl.GetBeamLength and (not entsTbl.GetShowBeam or entsTbl.GetShowBeam( self )) then
 			-- Every SENT that has GetBeamLength should draw a tracer. Some of them have the GetShowBeam boolean
@@ -270,28 +270,29 @@ if CLIENT then
 		end
 	end)
 
-	function ENT:DoNormalDraw(nohalo, notip)
-		if not nohalo and wire_drawoutline:GetBool() and looked_at == self then
-			self:DrawEntityOutline()
-			self:DrawModel()
-		else
-			self:DrawModel()
-		end
-		if not notip and looked_at == self then
-			self:AddWorldTip()
+	function ENT:DoNormalDraw(nohalo, notip, flags)
+		self:DrawModel(flags)
+
+		if looked_at == self then
+			if not nohalo and wire_drawoutline:GetBool() then
+				self:DrawEntityOutline()
+			end
+
+			if not notip then
+				self:AddWorldTip()
+			end
 		end
 	end
 
 	function ENT:Think()
-		local tab = self:GetTable()
+		if not EntityMeta.IsDormant(self) then
+			local tab = EntityMeta.GetTable(self)
 
-		if (CurTime() >= (tab.NextRBUpdate or 0)) then
-			-- We periodically update the render bounds every 10 seconds - the
-			-- reasons why are mostly anecdotal, but in some circumstances
-			-- entities might 'forget' their renderbounds. Nobody really knows
-			-- if this is still needed or not.
-			tab.NextRBUpdate = CurTime() + 10
-			Wire_UpdateRenderBounds(self)
+			if (CurTime() >= (tab.NextRBUpdate or 0)) then
+				-- Periodically update renderbounds to make connected wires visible when we're not looking at the entity
+				tab.NextRBUpdate = CurTime() + 10
+				Wire_UpdateRenderBounds(self)
+			end
 		end
 	end
 

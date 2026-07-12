@@ -84,14 +84,14 @@ function WireLib.TriggerInput(ent, name, value, ...)
 		input.TriggerLimit = input.TriggerLimit - 1
 	end
 
-	local ok, ret = xpcall(triggerInput, debug.traceback, ent, name, value, ...)
+	local ok = ProtectedCall(triggerInput, ent, name, value, ...)
+
 	if not ok then
 		local ply = WireLib.GetOwner(ent)
-		local validPly = IsValid(ply)
-		local owner_msg = validPly and (" by %s"):format(tostring(ply)) or ""
-		local message = ("Wire error (%s%s):\n%s\n"):format(tostring(ent), owner_msg, ret)
-		WireLib.ErrorNoHalt(message)
-		if validPly then WireLib.ClientError(message, ply) end
+
+		if IsValid(ply) then
+			WireLib.ClientError("Wire error (" .. tostring(ent) .. ")", ply)
+		end
 	end
 end
 
@@ -1348,26 +1348,6 @@ concommand.Add("wireversion", function(ply)
 		print(text)
 	end
 end, nil, "Prints the server's Wiremod version")
-
-function WireLib.CheckRegex(data, pattern)
-	local limits = {[0] = 50000000, 15000, 500, 150, 70, 40} -- Worst case is about 200ms
-	local stripped, nrepl, nrepl2
-	-- strip escaped things
-	stripped, nrepl = string.gsub(pattern, "%%.", "")
-	-- strip bracketed things
-	stripped, nrepl2 = string.gsub(stripped, "%[.-%]", "")
-	-- strip captures
-	stripped = string.gsub(stripped, "[()]", "")
-	-- Find extenders
-	local n = 0 for i in string.gmatch(stripped, "[%+%-%*]") do n = n + 1 end
-	local msg
-	if n<=#limits then
-		if #data*(#stripped + nrepl - n + nrepl2)>limits[n] then msg = n.." ext search length too long ("..limits[n].." max)" else return end
-	else
-		msg = "too many extenders"
-	end
-	error("Regex is too complex! " .. msg)
-end
 
 local material_blacklist = {
 	["pp/copy"] = true,

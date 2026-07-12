@@ -407,13 +407,6 @@ WireLib.NetQueue = {
 setmetatable(WireLib.NetQueue, WireLib.NetQueue)
 end
 
-function WireLib.ErrorNoHalt(message)
-	-- ErrorNoHalt clips messages to 512 characters, so chain calls if necessary
-	for i=1,#message, 511 do
-		ErrorNoHalt(message:sub(i,i+510))
-	end
-end
-
 --- Generate a random version 4 UUID and return it as a string.
 function WireLib.GenerateUUID()
 	-- It would be easier to generate this by word rather than by byte, but
@@ -1197,16 +1190,20 @@ do
 			end
 		end)
 
-		hook.Add("PlayerButtonDown", MESSAGE_NAME, function(player, button)
-			if not player.SyncedBindings then return end
-			local binding = player.SyncedBindings[button]
-			hook.Run("PlayerBindDown", player, binding, button)
+		hook.Add("PlayerButtonDown", MESSAGE_NAME, function(ply, button)
+			local syncedBinds = ply.SyncedBindings
+			if not syncedBinds then return end
+
+			local binding = syncedBinds[button]
+			hook.Run("PlayerBindDown", ply, binding, button)
 		end)
 
-		hook.Add("PlayerButtonUp", MESSAGE_NAME, function(player, button)
-			if not player.SyncedBindings then return end
-			local binding = player.SyncedBindings[button]
-			hook.Run("PlayerBindUp", player, binding, button)
+		hook.Add("PlayerButtonUp", MESSAGE_NAME, function(ply, button)
+			local syncedBinds = ply.SyncedBindings
+			if not syncedBinds then return end
+
+			local binding = syncedBinds[button]
+			hook.Run("PlayerBindUp", ply, binding, button)
 		end)
 	end
 end
@@ -1281,6 +1278,29 @@ function WireLib.NotifyBuilder(msg, severity, color)
 	ret[n + 1] = color or severity2color[severity]
 	ret[n + 2] = msg
 	return ret
+end
+
+-- Worst case is about 200ms
+local regex_limits = {[0] = 50000000, 15000, 500, 150, 70, 40}
+
+function WireLib.CheckRegex(data, pattern, custom_limits)
+	local limits = custom_limits or regex_limits
+	local stripped, nrepl, nrepl2
+	-- strip escaped things
+	stripped, nrepl = string.gsub(pattern, "%%.", "")
+	-- strip bracketed things
+	stripped, nrepl2 = string.gsub(stripped, "%[.-%]", "")
+	-- strip captures
+	stripped = string.gsub(stripped, "[()]", "")
+	-- Find extenders
+	local n = 0 for i in string.gmatch(stripped, "[%+%-%*]") do n = n + 1 end
+	local msg
+	if n<=#limits then
+		if #data*(#stripped + nrepl - n + nrepl2)>limits[n] then msg = n.." ext search length too long ("..limits[n].." max)" else return end
+	else
+		msg = "too many extenders"
+	end
+	error("Regex is too complex! " .. msg)
 end
 
 local typeIDToStringTable = {

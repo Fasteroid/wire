@@ -1085,14 +1085,14 @@ e2function void holoDisableShading( index, disable )
 	local Holo = CheckIndex(self, index)
 	if not Holo then return end
 
-	Holo.ent:SetNWBool( "disable_shading", disable == 1 )
+	Holo.ent:SetDisableShading( disable == 1 )
 end
 
 e2function void holoInvertModel( index, enable )
 	local Holo = CheckIndex(self, index)
 	if not Holo then return end
 
-	Holo.ent:SetNWInt("invert_model", enable ~= 0 and 1 or 0)
+	Holo.ent:SetInvertModel( enable ~= 0 and true or false )
 end
 
 -- -----------------------------------------------------------------------------
@@ -1163,13 +1163,14 @@ e2function void holoPlayerColor(index, vector color)
 	set_player_color(Holo, Vector(r, g, b))
 end
 
-e2function void holoRenderFX(index, effect)
+e2function void holoRenderFX(index, fx)
 	local Holo = CheckIndex(self, index)
 	if not Holo then return end
 
-	effect = effect - effect % 1
-	if effect == 23 then return self:throw("Cannot use kRenderFxRagdoll renderfx!", nil) end
-	Holo.ent:SetKeyValue("renderfx",effect)
+	fx = math.floor(fx)
+	if (fx < 0 or fx > 16) and fx ~= 24 then return self:throw("Cannot use that RenderFX!", nil) end
+
+	Holo.ent:SetRenderFX(fx)
 end
 
 e2function void holoBodygroup(index, bgrp_id, bgrp_subid)

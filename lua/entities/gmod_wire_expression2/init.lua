@@ -8,6 +8,8 @@ e2_softquota = nil
 e2_hardquota = nil
 e2_tickquota = nil
 e2_timequota = nil
+e2_timeaverage = nil
+e2_globalmax = nil
 
 do
 	local wire_expression2_unlimited = GetConVar("wire_expression2_unlimited")
@@ -15,6 +17,8 @@ do
 	local wire_expression2_quotahard = GetConVar("wire_expression2_quotahard")
 	local wire_expression2_quotatick = GetConVar("wire_expression2_quotatick")
 	local wire_expression2_quotatime = GetConVar("wire_expression2_quotatime")
+	local wire_expression2_quota_global = GetConVar("wire_expression2_quota_global")
+	local wire_expression2_quota_average = GetConVar("wire_expression2_quota_average")
 
 	local function updateQuotas()
 		if wire_expression2_unlimited:GetBool() then
@@ -22,18 +26,24 @@ do
 			e2_hardquota = 1000000
 			e2_tickquota = 100000
 			e2_timequota = -1
+			e2_globalmax = -1
 		else
 			e2_softquota = wire_expression2_quotasoft:GetFloat()
 			e2_hardquota = wire_expression2_quotahard:GetFloat()
 			e2_tickquota = wire_expression2_quotatick:GetFloat()
 			e2_timequota = wire_expression2_quotatime:GetFloat() * 0.001
+			e2_globalmax = wire_expression2_quota_global:GetFloat() * 0.001
 		end
+
+		e2_timeaverage = 1 / wire_expression2_quota_average:GetFloat()
 	end
 	cvars.AddChangeCallback("wire_expression2_unlimited", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotasoft", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotahard", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotatick", updateQuotas)
 	cvars.AddChangeCallback("wire_expression2_quotatime", updateQuotas)
+	cvars.AddChangeCallback("wire_expression2_quota_average", updateQuotas)
+	cvars.AddChangeCallback("wire_expression2_quota_global", updateQuotas)
 	updateQuotas()
 end
 
@@ -79,7 +89,7 @@ function ENT:Initialize()
 	local owner = self.player
 
 	if IsValid(owner) then
-		E2Lib.PlayerChips[owner]:add(self)
+		E2Lib.PlayerChips:add(owner, self)
 	end
 end
 
@@ -115,9 +125,10 @@ function ENT:UpdatePerf(selfTbl)
 	if not context then return end
 	if selfTbl.error then return end
 
-	context.prfbench = context.prfbench * 0.95 + context.prf * 0.05
+	local average_weight = 1 - e2_timeaverage
+	context.prfbench = context.prfbench * average_weight + context.prf * e2_timeaverage
 	context.prfcount = context.prfcount + context.prf - e2_softquota
-	context.timebench = context.timebench * 0.95 + context.time * 0.05 -- Average it over the last 20 ticks
+	context.timebench = context.timebench * average_weight + context.time * e2_timeaverage -- Average it over the last X ticks
 
 	if context.prfcount < 0 then context.prfcount = 0 end
 
@@ -359,27 +370,90 @@ function PlayerChips:checkCpuTime()
 			break
 		end
 	end
+
+	return total_time
 end
 
-function PlayerChips:add(chip)
-	table.insert(self, chip)
+local GlobalChips = {}
+GlobalChips.__index = GlobalChips
+
+function GlobalChips:add(ply, add_chip)
+	local chips = self[ply]
+
+	if not chips then
+		chips = PlayerChips:new()
+		self[ply] = chips
+	end
+
+	table.insert(chips, add_chip)
 end
 
-function PlayerChips:remove(remove_chip)
-	for index, chip in ipairs(self) do
-		if remove_chip == chip then
-			table.remove(self, index)
-			break
+function GlobalChips:remove(remove_chip)
+	-- Expensive iteration because chips may sometimes not be removed? (See #3602)
+	for ply, chips in pairs(self) do
+		for index, chip in ipairs(chips) do
+			if remove_chip == chip then
+				table.remove(chips, index)
+
+				if #chips == 0 then
+					self[ply] = nil
+				end
+
+				return
+			end
 		end
 	end
 end
 
-E2Lib.PlayerChips = E2Lib.PlayerChips or setmetatable({}, {__index = function(self, ply) local chips = PlayerChips:new() self[ply] = chips return chips end})
+function GlobalChips:findMaxTimeChip(chips)
+	local max_chip, max_time = nil, 0
+
+	for _, chip in ipairs(chips) do
+		local tab = chip:GetTable()
+		if tab.error then continue end
+
+		local context = tab.context
+		if not context then continue end
+
+		if context.timebench > max_time then
+			max_time = context.timebench
+			max_chip = chip
+		end
+	end
+
+	return max_chip, max_time
+end
+
+E2Lib.PlayerChips = E2Lib.PlayerChips or setmetatable({}, GlobalChips)
 
 hook.Add("Think", "E2_Think", function()
+	local global_time = 0
+
 	if e2_timequota > 0 then
 		for ply, chips in pairs(E2Lib.PlayerChips) do
-			chips:checkCpuTime()
+			global_time = global_time + chips:checkCpuTime()
+		end
+	else
+		for ply, chips in pairs(E2Lib.PlayerChips) do
+			global_time = global_time + chips:getTotalTime()
+		end
+	end
+
+	if e2_globalmax > 0 and global_time > e2_globalmax then
+		-- It will be faster to just iterate over all chips from now on
+		local chips = ents.FindByClass("gmod_wire_expression2")
+
+		while global_time > e2_globalmax do
+			local max_chip, max_time = E2Lib.PlayerChips:findMaxTimeChip(chips)
+
+			if max_chip then
+				global_time = global_time - max_time
+				max_chip:Error("Expression 2 (" .. max_chip.name .. "): Global time quota exceeded", "global time quota exceeded")
+				max_chip:Destruct()
+			else
+				-- It shouldn't happen, but if something breaks, it will prevent an infinity loop
+				break
+			end
 		end
 	end
 end)
@@ -397,17 +471,7 @@ function ENT:OnRemove()
 		self:Destruct()
 	end
 
-	local owner = self.player
-	local chips = rawget(E2Lib.PlayerChips, owner)
-
-	if chips then
-		chips:remove(self)
-
-		if #chips == 0 then
-			E2Lib.PlayerChips[owner] = nil
-		end
-	end
-
+	E2Lib.PlayerChips:remove(self)
 	BaseClass.OnRemove(self)
 end
 
@@ -452,7 +516,7 @@ function ENT:CompileCode(buffer, files, filepath)
 	else
 		self.WireDebugName = "E2 - " .. self.name
 	end
-	self:SetNWString("name", self.name)
+	self:SetInstanceName(self.name)
 
 	self.directives = directives
 	self.inports = directives.inputs
@@ -816,25 +880,29 @@ end
 
 -- -------------------------------- Transfer ----------------------------------
 
---[[
-	Player Disconnection Magic
---]]
-hook.Add("PlayerDisconnected", "Wire_Expression2_Player_Disconnected", function(ply)
-	E2Lib.PlayerChips[ply] = nil
+-- EntityRemoved instead PlayerDisconnected because is not called for the listen-host (for example during retry)
+hook.Add("EntityRemoved", "Wire_Expression2_Player_Disconnected", function(ply)
+	if ply:IsPlayer() then
+		E2Lib.PlayerChips[ply] = nil
 
-	for _, v in ipairs(ents.FindByClass("gmod_wire_expression2")) do
-		if v.player == ply and not v.error then
-			v:Error("Owner disconnected")
-			v:Destruct()
+		for _, v in ipairs(ents.FindByClass("gmod_wire_expression2")) do
+			if v.player == ply and not v.error then
+				v:Error("Owner disconnected")
+				v:Destruct()
+			end
 		end
 	end
 end)
 
 hook.Add("PlayerAuthed", "Wire_Expression2_Player_Authed", function(ply, sid, uid)
 	for _, ent in ipairs(ents.FindByClass("gmod_wire_expression2")) do
+		-- Add to the account only for the real owner
+		if ent:GetPlayer() == ply then
+			E2Lib.PlayerChips:add(ply, ent)
+		end
+
 		if ent.uid == uid then
-			E2Lib.PlayerChips[ply]:add(ent)
-			ent:SetNWEntity("player", ply)
+			ent:SetInstancePlayer(ply)
 			ent.player = ply
 		end
 	end
@@ -854,9 +922,11 @@ function MakeWireExpression2(player, Pos, Ang, model, buffer, name, inputs, outp
 	self:SetAngles(Ang)
 	self:SetPos(Pos)
 	self:SetPlayer(player)
-	self:SetNWEntity("player", player)
 	self.player = player
 	self:Spawn()
+
+	-- Wait for ENT:SetupDataTables
+	self:SetInstancePlayer(self.player)
 
 	if isstring( buffer ) then -- if someone dupes an E2 with compile errors, then all these values will be invalid
 		buffer = string.Replace(string.Replace(buffer, string.char(163), "\""), string.char(128), "\n")
